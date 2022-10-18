@@ -2,17 +2,18 @@ import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import {
   DetailedHTMLProps,
-  HTMLAttributes,
+  HTMLAttributes, ReactElement,
   ReactNode,
   useEffect,
   useRef,
-  useState,
-} from 'react';
+  useState
+} from "react";
 import panzoom, { PanZoom } from 'panzoom';
+import { v4 as uuidv4 } from 'uuid';
 import { KeyPress } from './hooks/useKeyPress';
 import { CommandPalette, OpenOnKeyPress } from './components/CommandPalette';
 // import Canvas from "./components/Canvas";
-import WebNode from './components/Node';
+import { WebNode, TNode, TNodeDetails, NodeHelper } from "./components/Node";
 // import PrismaZoom from './components/PrismaZoom';
 
 function setTitle(title: string) {
@@ -61,6 +62,7 @@ const Zoomable = ({ children, setPanZoom }: TZoomable) => {
           }
           return true;
         },
+        zoomDoubleClickSpeed: 1,
       });
 
       setPanZoom(instance);
@@ -86,7 +88,61 @@ const Zoomable = ({ children, setPanZoom }: TZoomable) => {
 
 const Hello = () => {
   const panZoomRef = useRef<PanZoom | null>(null);
-  const [webviews, setWebviews] = useState<JSX.Element[]>([]);
+  const [nodes, setNodes] = useState<{ [id: string]: ReactElement<TNode, typeof WebNode> }>({});
+  const nodesRef = useRef<{ [id: string]: ReactElement<TNode, typeof WebNode> }>({});
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedIdRef = useRef(selectedId);
+
+  function select(id: string | null) {
+    selectedIdRef.current = id;
+    setSelectedId(selectedIdRef.current);
+  }
+
+  function remove(id: string) {
+    const { [id]: webview, ...rest } = nodesRef.current;
+    nodesRef.current = rest;
+    setNodes(nodesRef.current);
+    return webview;
+  }
+
+  function addNode(id: string, elem: JSX.Element) {
+
+  }
+
+  function add(nodeDetails: TNodeDetails) {
+    const id = uuidv4();
+    const webview = (
+      <WebNode
+        nodeDetails={nodeDetails}
+        x={0}
+        y={0}
+        panZoomRef={panZoomRef}
+        add={(details: TNodeDetails) => {
+          add(details);
+        }}
+        remove={() => {
+          remove(id);
+        }}
+        isSelected={() => selectedIdRef.current === id}
+        onChangeSelection={(selected: boolean) => {
+          if (selected) {
+            select(id);
+          } else if (selectedIdRef.current === id) {
+            select(null);
+          }
+        }}
+      />
+    );
+    nodesRef.current = {
+      ...nodesRef.current,
+      [id]: webview,
+    };
+    setNodes(nodesRef.current);
+  }
+
+  const renderWebviews = () => {
+    return Object.values(nodes);
+  };
 
   return (
     <>
@@ -105,12 +161,11 @@ const Hello = () => {
       </div>
       <OpenOnKeyPress shortcut={new KeyPress({ key: 'k', cmdCtrl: true })}>
         <CommandPalette
-          onCommand={(w) => {
+          onCommand={(details: string | TNodeDetails) => {
             // AddWebview(w);
-            setWebviews([
-              ...webviews,
-              <WebNode url={w} x={0} y={0} panZoomRef={panZoomRef} />,
-            ]);
+            if (NodeHelper.isNode(details)) {
+              add(details);
+            }
           }}
         />
       </OpenOnKeyPress>
@@ -136,11 +191,11 @@ const Hello = () => {
           }}
           // maxZoom={0.2}
         >
-          <div className="node">
+          <div className="nodes" onFocus={() => {
+            select(null);
+          }}>
             <h1>Hello!</h1>
-          </div>
-          <div className="node">
-            <div className="webviews">{webviews}</div>
+            {renderWebviews()}
           </div>
         </Zoomable>
       </div>

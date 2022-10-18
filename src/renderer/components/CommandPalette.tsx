@@ -3,6 +3,7 @@ import Fuse from 'fuse.js';
 import { DetailedHTMLProps, HTMLAttributes, ReactNode, useEffect, useRef, useState } from "react";
 import { KeyPress, useKeyPressEffect } from '../hooks/useKeyPress';
 import styles from './CommandPalette.module.scss';
+import { NodeHelper, TNodeDetails } from "./Node";
 
 interface SelectableProps {
   value: string;
@@ -97,8 +98,24 @@ interface ActionItem {
   shortcut?: KeyPress;
 }
 
+const getCommands = (onCommand: (c: string | TNodeDetails) => void) => [
+  {
+    item: 'Text',
+    command: () => onCommand(NodeHelper.text('A new text node!')),
+  },
+  {
+    item: '(Web) Google',
+    command: () => onCommand(NodeHelper.webview('https://www.google.com')),
+    // shortcut: new KeyPress({ key: 'a', cmdCtrl: true }),
+  },
+  {
+    item: '(Web) DuckDuckGo',
+    command: () => onCommand(NodeHelper.webview('https://duckduckgo.com')),
+  },
+];
+
 interface CommandPaletteExtraProps {
-  onCommand: (cmd: string) => void;
+  onCommand: (cmd: string | TNodeDetails) => void;
 }
 
 type CommandPaletteProps = DetailedHTMLProps<
@@ -110,20 +127,9 @@ type CommandPaletteProps = DetailedHTMLProps<
 const CommandPalette = ({ onCommand }: CommandPaletteProps) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchValue, setSearchValue] = useState('');
-  const [availableItems, _] = useState<ActionItem[]>([
-    {
-      item: 'Alpha',
-      command: () => onCommand('Alpha'),
-      shortcut: new KeyPress({ key: 'a', cmdCtrl: true }),
-    },
-    { item: 'Beta', command: () => onCommand('Beta') },
-    {
-      item: 'Gamma',
-      command: () => onCommand('Gamma'),
-      shortcut: new KeyPress({ key: 'g', cmdCtrl: true }),
-    },
-    { item: 'Epsilon', command: () => onCommand('Epsilon') },
-  ]);
+  const [availableItems, setAvailableItems] = useState<ActionItem[]>(
+    getCommands(onCommand)
+  );
   const fuseList = useRef<Fuse<ActionItem>>(
     new Fuse(availableItems, { keys: ['item'] })
   );
@@ -147,6 +153,10 @@ const CommandPalette = ({ onCommand }: CommandPaletteProps) => {
     }
   }, [searchValue, availableItems]);
 
+  const addItem = (item: ActionItem) => {
+    setAvailableItems([item, ...availableItems]);
+  };
+
   useKeyPressEffect(() => {
     setSelectedIndex((selectedIndex + 1) % searchResults.length);
   }, 'ArrowDown');
@@ -161,6 +171,10 @@ const CommandPalette = ({ onCommand }: CommandPaletteProps) => {
       item?.command();
     } else {
       // TODO: Fix hack
+      addItem({
+        item: searchValue,
+        command: () => onCommand(searchValue),
+      });
       onCommand(searchValue);
     }
   }, 'Enter');

@@ -20,13 +20,13 @@ body, * {
   -webkit-app-region: no-drag;
 }
 
-.node {
+.nodes {
   position: absolute;
   width: 100%;
   height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
+  /*display: flex;*/
+  /*align-items: center;*/
+  /*justify-content: space-around;*/
 }
 
 .title-bar-container {
@@ -92,17 +92,6 @@ body {
   font-family: sans-serif;
   overflow-y: hidden;
   margin: 0;
-}
-
-.webviews {
-  display: flex;
-  gap: 40px;
-  flex-wrap: wrap;
-}
-
-.webviews webview {
-  width: 400px;
-  height: 400px;
 }
 
 :host(iframe) {
