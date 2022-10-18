@@ -11,7 +11,7 @@ import {
 import panzoom, { PanZoom } from 'panzoom';
 import { v4 as uuidv4 } from 'uuid';
 import { KeyPress } from './hooks/useKeyPress';
-import { CommandPalette, OpenOnKeyPress } from './components/CommandPalette';
+import { CloseWithEscape, CommandPalette, OpenOnKeyPress } from './components/CommandPalette';
 // import Canvas from "./components/Canvas";
 import { WebNode, TNode, TNodeDetails, NodeHelper } from "./components/Node";
 // import PrismaZoom from './components/PrismaZoom';
@@ -47,8 +47,9 @@ const Zoomable = ({ children, setPanZoom }: TZoomable) => {
   useEffect(() => {
     if (divRef.current != null) {
       const instance = panzoom(divRef.current, {
-        initialZoom: 0.25,
+        initialZoom: 0.5,
         enableTextSelection: true,
+        filterKey: () => true,
         beforeWheel(e) {
           // Only allow ctrl + scroll (or pinch on macos)
           if (e.ctrlKey) {
@@ -87,6 +88,7 @@ const Zoomable = ({ children, setPanZoom }: TZoomable) => {
 };
 
 const Hello = () => {
+  const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const panZoomRef = useRef<PanZoom | null>(null);
   const [nodes, setNodes] = useState<{ [id: string]: ReactElement<TNode, typeof WebNode> }>({});
   const nodesRef = useRef<{ [id: string]: ReactElement<TNode, typeof WebNode> }>({});
@@ -105,17 +107,13 @@ const Hello = () => {
     return webview;
   }
 
-  function addNode(id: string, elem: JSX.Element) {
-
-  }
-
-  function add(nodeDetails: TNodeDetails) {
+  function add(nodeDetails: TNodeDetails, { x, y } = { x: 0, y: 0 }) {
     const id = uuidv4();
     const webview = (
       <WebNode
         nodeDetails={nodeDetails}
-        x={0}
-        y={0}
+        x={x}
+        y={y}
         panZoomRef={panZoomRef}
         add={(details: TNodeDetails) => {
           add(details);
@@ -144,6 +142,35 @@ const Hello = () => {
     return Object.values(nodes);
   };
 
+  useEffect(() => {
+    add(NodeHelper.text(
+      'Welcome!\n' +
+      '\n' +
+      'Command Palette: Cmd+K\n' +
+      'New Browser: Cmd+N\n' +
+      'New Text Box: Cmd+T\n'
+    ), {x: 0,  y: 0});
+    add(NodeHelper.webview('www.google.com'), {x: 320, y: 320});
+
+    window.electron.ipcRenderer.on('add-webview', (args) => {
+      const objs = args as { url: string, x?: number, y?: number }[];
+      objs.forEach(({ url, x, y }) => {
+        add(NodeHelper.webview(url), { x: x || 0, y: y || 0 });
+      });
+    });
+
+    window.electron.ipcRenderer.on('add-text', (args) => {
+      const objs = args as { text: string, x?: number, y?: number }[];
+      objs.forEach(({ text, x, y }) => {
+        add(NodeHelper.text(text), { x: x || 0, y: y || 0 });
+      });
+    });
+
+    window.electron.ipcRenderer.on('open-command-palette', () => {
+      setShowCommandPalette(true);
+    });
+  }, []);
+
   return (
     <>
       <div className="title-bar-container">
@@ -159,8 +186,9 @@ const Hello = () => {
         </div>
         <div className="title-bar-rest" />
       </div>
-      <OpenOnKeyPress shortcut={new KeyPress({ key: 'k', cmdCtrl: true })}>
+      <CloseWithEscape shown={showCommandPalette} onHide={() => setShowCommandPalette(false)}>
         <CommandPalette
+          onBlur={() => setShowCommandPalette(false)}
           onCommand={(details: string | TNodeDetails) => {
             // AddWebview(w);
             if (NodeHelper.isNode(details)) {
@@ -168,7 +196,7 @@ const Hello = () => {
             }
           }}
         />
-      </OpenOnKeyPress>
+      </CloseWithEscape>
       {/* <Canvas /> */}
       <div
         style={{
@@ -182,19 +210,11 @@ const Hello = () => {
           setPanZoom={(p) => {
             panZoomRef.current = p;
           }}
-          style={{
-            width: '4000px',
-            height: '3000px',
-            position: 'relative',
-            border: '4px solid white',
-            padding: '40px',
-          }}
           // maxZoom={0.2}
         >
           <div className="nodes" onFocus={() => {
             select(null);
           }}>
-            <h1>Hello!</h1>
             {renderWebviews()}
           </div>
         </Zoomable>

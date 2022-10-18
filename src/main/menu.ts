@@ -43,9 +43,25 @@ export default class MenuBuilder {
 
       Menu.buildFromTemplate([
         {
-          label: 'Inspect element',
+          label: 'New Browser',
           click: () => {
-            this.mainWindow.webContents.inspectElement(x, y);
+            this.mainWindow.webContents.send('add-webview', [
+              { url: 'https://google.com', x, y },
+            ]);
+          },
+        },
+        {
+          label: 'New Text',
+          click: () => {
+            this.mainWindow.webContents.send('add-text', [
+              { text: 'New text', x, y },
+            ]);
+          },
+        },
+        {
+          label: 'Command Palette',
+          click: () => {
+            this.mainWindow.webContents.send('open-command-palette');
           },
         },
       ]).popup({ window: this.mainWindow });
@@ -57,19 +73,19 @@ export default class MenuBuilder {
       label: 'Electron',
       submenu: [
         {
-          label: 'About ElectronReact',
+          label: 'About',
           selector: 'orderFrontStandardAboutPanel:',
         },
         { type: 'separator' },
         { label: 'Services', submenu: [] },
         { type: 'separator' },
         {
-          label: 'Hide ElectronReact',
+          label: 'Hide',
           accelerator: 'Command+H',
           selector: 'hide:',
         },
         {
-          label: 'Hide Others',
+          label: 'Hide Everything Else',
           accelerator: 'Command+Shift+H',
           selector: 'hideOtherApplications:',
         },
@@ -80,6 +96,36 @@ export default class MenuBuilder {
           accelerator: 'Command+Q',
           click: () => {
             app.quit();
+          },
+        },
+      ],
+    };
+    const subMenuFile: DarwinMenuItemConstructorOptions = {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Browser',
+          accelerator: 'Command+N',
+          click: () => {
+            this.mainWindow.webContents.send('add-webview', [
+              { url: 'https://google.com' },
+            ]);
+          },
+        },
+        {
+          label: 'New Text',
+          accelerator: 'Command+T',
+          click: () => {
+            this.mainWindow.webContents.send('add-text', [
+              { text: 'New text' },
+            ]);
+          },
+        },
+        {
+          label: 'Command Palette',
+          accelerator: 'Command+K',
+          click: () => {
+            this.mainWindow.webContents.send('open-command-palette');
           },
         },
       ],
@@ -152,35 +198,8 @@ export default class MenuBuilder {
       ],
     };
     const subMenuHelp: MenuItemConstructorOptions = {
-      label: 'Help',
-      submenu: [
-        {
-          label: 'Learn More',
-          click() {
-            shell.openExternal('https://electronjs.org');
-          },
-        },
-        {
-          label: 'Documentation',
-          click() {
-            shell.openExternal(
-              'https://github.com/electron/electron/tree/main/docs#readme'
-            );
-          },
-        },
-        {
-          label: 'Community Discussions',
-          click() {
-            shell.openExternal('https://www.electronjs.org/community');
-          },
-        },
-        {
-          label: 'Search Issues',
-          click() {
-            shell.openExternal('https://github.com/electron/electron/issues');
-          },
-        },
-      ],
+      role: 'help',
+      submenu: [],
     };
 
     const subMenuView =
@@ -189,7 +208,14 @@ export default class MenuBuilder {
         ? subMenuViewDev
         : subMenuViewProd;
 
-    return [subMenuAbout, subMenuEdit, subMenuView, subMenuWindow, subMenuHelp];
+    return [
+      subMenuAbout,
+      subMenuFile,
+      subMenuEdit,
+      subMenuView,
+      subMenuWindow,
+      subMenuHelp,
+    ];
   }
 
   buildDefaultTemplate() {

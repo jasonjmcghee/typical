@@ -12,6 +12,8 @@ import { PanZoom } from 'panzoom';
 import WebviewTag = Electron.WebviewTag;
 import { ArrowLeftIcon, ArrowPathIcon, ArrowRightIcon, XMarkIcon } from '@heroicons/react/24/solid';
 
+import styles from './Node.module.scss';
+
 type TNode = {
   nodeDetails: TNodeDetails;
   x: number;
@@ -105,7 +107,11 @@ class NodeHelper {
   }
 
   static webview(url: string): IWebviewNode {
-    return { url, type: 'webview' };
+    let finalUrl = url;
+    if (!url.includes('://')) {
+      finalUrl = `https://${url}`;
+    }
+    return { url: finalUrl, type: 'webview' };
   }
 
   static isWebview(n: any): n is IWebviewNode {
@@ -158,7 +164,12 @@ const GenericNode = ({
   }
 
   return (
-    <div onBlur={() => onChangeSelection(false)}>
+    <div
+      style={{
+        height: '-webkit-fill-available',
+        width: '-webkit-fill-available',
+      }}
+      onBlur={() => onChangeSelection(false)}>
       <div
         className="generic-navbar"
         style={{
@@ -171,21 +182,19 @@ const GenericNode = ({
           paddingLeft: '6px',
           paddingRight: '6px',
           gap: '20px',
-          alignItems: 'center',
+          placeContent: 'flex-end'
         }}
       >
-        <div>
-          <button
-            type="button"
-            style={{ padding: 0, color: 'white', background: 'transparent' }}
-            onClick={(event) => {
-              remove();
-              event.preventDefault();
-            }}
-          >
-            Close
-          </button>
-        </div>
+        <button
+          type="button"
+          style={{ padding: 0, width: '24px', color: 'white', background: 'transparent' }}
+          onClick={(event) => {
+            remove();
+            event.preventDefault();
+          }}
+        >
+          <XMarkIcon />
+        </button>
       </div>
       <div style={style} onFocus={() => onChangeSelection(true)}>
         {children}
@@ -375,7 +384,10 @@ function CompNode({
   if (NodeHelper.isText(nodeDetails)) {
     return (
       <GenericNode {...rest}>
-        <div contentEditable>{nodeDetails.text}</div>
+        <textarea
+          className={styles.textNode}
+          defaultValue={nodeDetails.text}
+        />
       </GenericNode>
     );
   }
@@ -429,6 +441,7 @@ function WebNode({
   }
 
   const frameStyle: CSSProperties = {
+    position: 'absolute',
     background: '#33373b',
     padding: '48px 2px 2px 2px',
     borderRadius: '6px',

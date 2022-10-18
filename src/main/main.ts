@@ -25,12 +25,6 @@ class AppUpdater {
 
 let mainWindow: BrowserWindow | null = null;
 
-ipcMain.on('ipc-example', async (event, arg) => {
-  const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
-  console.log(msgTemplate(arg));
-  event.reply('ipc-example', msgTemplate('pong'));
-});
-
 ipcMain.on('set-title', (_, title) => {
   if (!mainWindow) {
     throw new Error('"mainWindow" is not defined');
@@ -88,6 +82,7 @@ const createWindow = async () => {
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),
       webviewTag: true,
+      partition: 'persist:mainSession',
     },
   });
 
@@ -110,15 +105,15 @@ const createWindow = async () => {
   // view.webContents.loadURL(resolveHtmlPath('index.html'));
   // view.webContents.setVisualZoomLevelLimits(0.25, 2.0);
 
-  mainWindow.webContents.on('dom-ready', () => {
-    if (!mainWindow) {
-      throw new Error('"mainWindow" is not defined');
-    }
-    mainWindow.webContents.send('add-webview', [
-      { url: 'https://electronjs.org' },
-      { url: 'https://google.com' },
-    ]);
-  });
+  // mainWindow.webContents.on('dom-ready', () => {
+  //   if (!mainWindow) {
+  //     throw new Error('"mainWindow" is not defined');
+  //   }
+  //   mainWindow.webContents.send('add-webview', [
+  //     { url: 'https://electronjs.org' },
+  //     { url: 'https://google.com' },
+  //   ]);
+  // });
 
   mainWindow.on('ready-to-show', () => {
     if (!mainWindow) {

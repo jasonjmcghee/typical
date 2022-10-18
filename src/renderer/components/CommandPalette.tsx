@@ -1,9 +1,16 @@
 import classNames from 'classnames';
 import Fuse from 'fuse.js';
-import { DetailedHTMLProps, HTMLAttributes, ReactNode, useEffect, useRef, useState } from "react";
+import {
+  DetailedHTMLProps,
+  HTMLAttributes,
+  ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { KeyPress, useKeyPressEffect } from '../hooks/useKeyPress';
 import styles from './CommandPalette.module.scss';
-import { NodeHelper, TNodeDetails } from "./Node";
+import { NodeHelper, TNodeDetails } from './Node';
 
 interface SelectableProps {
   value: string;
@@ -71,13 +78,9 @@ const Input = ({ value, setValue, className, autoFocus }: InputProps) => {
 type OpenOnKeyPressProps = DetailedHTMLProps<
   HTMLAttributes<HTMLDivElement>,
   HTMLDivElement
-> &
-  {shortcut: KeyPress};
+> & { shortcut: KeyPress };
 
-const OpenOnKeyPress = ({
-  shortcut,
-  children,
-}: OpenOnKeyPressProps) => {
+const OpenOnKeyPress = ({ shortcut, children }: OpenOnKeyPressProps) => {
   const [shown, setShown] = useState(false);
   useKeyPressEffect(() => {
     if (!shown) {
@@ -90,6 +93,18 @@ const OpenOnKeyPress = ({
     }
   }, 'Escape');
   return <div onBlur={() => setShown(false)}>{shown && children}</div>;
+};
+
+type CloseWithEscapeProps = DetailedHTMLProps<
+  HTMLAttributes<HTMLDivElement>,
+  HTMLDivElement
+> & { shown: boolean; onHide: () => void };
+
+const CloseWithEscape = ({ shown, onHide, children }: CloseWithEscapeProps) => {
+  useKeyPressEffect(() => {
+    onHide();
+  }, 'Escape');
+  return <div onBlur={() => onHide()}>{shown && children}</div>;
 };
 
 interface ActionItem {
@@ -166,16 +181,19 @@ const CommandPalette = ({ onCommand }: CommandPaletteProps) => {
     );
   }, 'ArrowUp');
   useKeyPressEffect(() => {
-    const item = searchResults[selectedIndex];
+    let item = searchResults[selectedIndex];
+
+    if (!item) {
+      const nodeData = NodeHelper.webview(searchValue);
+      item = {
+        item: searchValue,
+        command: () => onCommand(nodeData),
+      };
+      addItem(item);
+    }
+
     if (item) {
       item?.command();
-    } else {
-      // TODO: Fix hack
-      addItem({
-        item: searchValue,
-        command: () => onCommand(searchValue),
-      });
-      onCommand(searchValue);
     }
   }, 'Enter');
 
@@ -228,4 +246,4 @@ const CommandPalette = ({ onCommand }: CommandPaletteProps) => {
   );
 };
 
-export { CommandPalette, OpenOnKeyPress };
+export { CommandPalette, OpenOnKeyPress, CloseWithEscape };
