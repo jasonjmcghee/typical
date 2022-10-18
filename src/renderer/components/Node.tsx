@@ -159,9 +159,9 @@ const GenericNode = ({
     style.pointerEvents = 'none';
   }
 
-  if (selected) {
-    style.border = '4px solid rgba(0, 112, 243, 0.85)';
-  }
+  // if (selected) {
+  //   style.border = '4px solid rgba(0, 112, 243, 0.85)';
+  // }
 
   return (
     <div
@@ -236,9 +236,9 @@ const Webview = ({
     style.pointerEvents = 'none';
   }
 
-  if (selected) {
-    style.border = '4px solid rgba(0, 112, 243, 0.85)';
-  }
+  // if (selected) {
+  //   style.border = '4px solid rgba(0, 112, 243, 0.85)';
+  // }
 
   return (
     <>

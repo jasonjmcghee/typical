@@ -121,7 +121,8 @@ const Hello = () => {
         remove={() => {
           remove(id);
         }}
-        isSelected={() => selectedIdRef.current === id}
+        // isSelected={() => selectedIdRef.current === id}
+        isSelected={() => true}
         onChangeSelection={(selected: boolean) => {
           if (selected) {
             select(id);
