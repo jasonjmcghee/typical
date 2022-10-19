@@ -1,5 +1,5 @@
 {
-  "description": "A foundation for scalable desktop apps",
+  "description": "A new way to use the web",
   "keywords": [
     "electron",
     "boilerplate",
@@ -21,16 +21,11 @@
   },
   "license": "MIT",
   "author": {
-    "name": "Electron React Boilerplate Maintainers",
-    "email": "electronreactboilerplate@gmail.com",
-    "url": "https://electron-react-boilerplate.js.org"
+    "name": "Typical",
+    "email": "hi@jason.today",
+    "url": "https://jason.today"
   },
   "contributors": [
-    {
-      "name": "Amila Welihinda",
-      "email": "amilajack@gmail.com",
-      "url": "https://github.com/amilajack"
-    }
   ],
   "main": "./src/main/main.ts",
   "scripts": {
@@ -195,8 +190,8 @@
     "webpack-merge": "^5.8.0"
   },
   "build": {
-    "productName": "ElectronReact",
-    "appId": "org.erb.ElectronReact",
+    "productName": "Typical",
+    "appId": "today.jason.Typical",
     "asar": true,
     "asarUnpack": "**\\*.{node,dll}",
     "files": [

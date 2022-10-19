@@ -3,18 +3,31 @@ import { Resizable } from 're-resizable';
 import {
   CSSProperties,
   HTMLAttributes,
-  MutableRefObject,
+  MutableRefObject, RefObject,
   useEffect,
   useRef,
-  useState,
+  useState
 } from 'react';
 import { PanZoom } from 'panzoom';
 import WebviewTag = Electron.WebviewTag;
-import { ArrowLeftIcon, ArrowPathIcon, ArrowRightIcon, XMarkIcon } from '@heroicons/react/24/solid';
+import {
+  ArrowLeftIcon,
+  ArrowPathIcon,
+  ArrowRightIcon, SignalSlashIcon,
+  XMarkIcon
+} from '@heroicons/react/24/solid';
 
 import styles from './Node.module.scss';
 
+interface NodeMetadata {
+  centerOnNode: () => void;
+}
+
+type MetadataLookup = {[id: string]: NodeMetadata};
+
 type TNode = {
+  id: string;
+  metadataLookup: MutableRefObject<MetadataLookup>;
   nodeDetails: TNodeDetails;
   x: number;
   y: number;
@@ -30,6 +43,7 @@ type TNode = {
   onChangeSelection: (selected: boolean) => void;
 
   panZoomRef: MutableRefObject<PanZoom | null>;
+  frameRef: RefObject<HTMLDivElement | null>;
 
   readonly add: (details: TNodeDetails) => void;
   readonly remove: () => void;
@@ -169,7 +183,8 @@ const GenericNode = ({
         height: '-webkit-fill-available',
         width: '-webkit-fill-available',
       }}
-      onBlur={() => onChangeSelection(false)}>
+      onBlur={() => onChangeSelection(false)}
+    >
       <div
         className="generic-navbar"
         style={{
@@ -182,12 +197,17 @@ const GenericNode = ({
           paddingLeft: '6px',
           paddingRight: '6px',
           gap: '20px',
-          placeContent: 'flex-end'
+          placeContent: 'flex-end',
         }}
       >
         <button
           type="button"
-          style={{ padding: 0, width: '24px', color: 'white', background: 'transparent' }}
+          style={{
+            padding: 0,
+            width: '24px',
+            color: 'white',
+            background: 'transparent',
+          }}
           onClick={(event) => {
             remove();
             event.preventDefault();
@@ -214,6 +234,7 @@ const Webview = ({
   const forceUpdate = useForceUpdate();
   const webviewRef = useRef<WebviewTag>(null);
   const [urlValue, setUrlValue] = useState<string>(url);
+  const [notFound, setNotFound] = useState<boolean>(false);
 
   useEffect(() => {
     if (webviewRef.current !== null) {
@@ -222,7 +243,11 @@ const Webview = ({
         add(NodeHelper.webview(event.url));
       });
       webviewRef.current.addEventListener('did-navigate', async () => {
+        setNotFound(false);
         forceUpdate();
+      });
+      webviewRef.current.addEventListener('did-fail-load', async () => {
+        setNotFound(true);
       });
     }
   }, [add]);
@@ -362,14 +387,32 @@ const Webview = ({
           </button>
         </div>
       </div>
-      <webview
-        ref={webviewRef}
-        style={style}
-        src={url}
-        onLoad={(e) => {
-          updateStyle(e.target as HTMLWebViewElement);
-        }}
-      />
+      {notFound ? (
+        <div
+          style={{
+            ...style,
+            color: 'grey',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-around',
+            alignItems: 'center',
+          }}
+        >
+          <div>
+            <SignalSlashIcon />
+            Failed to load
+          </div>
+        </div>
+      ) : (
+        <webview
+          ref={webviewRef}
+          style={style}
+          src={url}
+          onLoad={(e) => {
+            updateStyle(e.target as HTMLWebViewElement);
+          }}
+        />
+      )}
     </>
   );
 };
@@ -385,9 +428,8 @@ function CompNode({
     return (
       <GenericNode {...rest}>
         <textarea
-          className={styles.textNode}
-          defaultValue={nodeDetails.text}
-        />
+          onMouseDown={(event) => event.stopPropagation()}
+          className={styles.textNode} defaultValue={nodeDetails.text} />
       </GenericNode>
     );
   }
@@ -407,10 +449,13 @@ function CompNode({
 }
 
 function WebNode({
+  id,
+  metadataLookup,
   nodeDetails,
   x,
   y,
   panZoomRef,
+  frameRef,
   add,
   remove,
   isSelected,
@@ -419,11 +464,15 @@ function WebNode({
   height = 480,
   hide = false,
 }: TNode) {
+  const metadata = metadataLookup.current[id];
+
   const forceUpdate = useForceUpdate();
   const nodeRectDiv = useRef<HTMLDivElement | null>(null);
   const [position, setPosition] = useState({ x, y });
   const [resizing, setResizing] = useState(false);
   const [dragging, setDragging] = useState(false);
+
+  const [zoomIn, setZoomIn] = useState(false);
 
   const selected = isSelected();
 
@@ -433,7 +482,8 @@ function WebNode({
     });
   }, []);
 
-  const scale = panZoomRef.current?.getTransform().scale ?? 1;
+  const transform = panZoomRef.current?.getTransform();
+  const scale = transform.scale ?? 1;
 
   const globalStyle: CSSProperties = {};
   if (hide) {
@@ -446,24 +496,46 @@ function WebNode({
     padding: '48px 2px 2px 2px',
     borderRadius: '6px',
     // position: 'relative',
-    boxShadow: '0 10px 16px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19)',
+    boxShadow: '0px 3px 6px -4px rgba(0, 0, 0, 0.12), 0px 6px 16px rgba(0, 0, 0, 0.08), 0px 9px 28px 8px rgba(0, 0, 0, 0.05)',
   };
 
   const onSelected = (s: boolean) => {
     onChangeSelection(s);
   };
 
+  function getCenter(w: number, h: number) {
+    const currentScale = panZoomRef.current?.getTransform().scale || 1;
+    const frameWidth = frameRef.current?.clientWidth ?? 0;
+    const frameHeight = frameRef.current?.clientHeight ?? 0;
+    const newX = -currentScale * (position.x + w * 0.5) + frameWidth * 0.5;
+    const newY = -currentScale * (position.y + h * 0.5) + frameHeight * 0.5;
+    return { newX, newY };
+  }
+
+  function centerOnNode() {
+    const currentScale = panZoomRef.current?.getTransform().scale || 1;
+    const div = nodeRectDiv.current;
+    const frame = frameRef.current;
+    if (div === null || frame == null) return;
+    const { height: frameHeight } = frame.getBoundingClientRect();
+    const { height: divHeight } = div.getBoundingClientRect();
+    const offset = 64;
+    const targetScale = (frameHeight - offset) / divHeight;
+
+    const newX = -currentScale * (position.x);
+    const newY = -currentScale * (position.y + offset * 0.25);
+    panZoomRef.current?.moveTo(newX, newY);
+    panZoomRef.current?.zoomTo(-16, 0, targetScale);
+  }
+
+  useEffect(() => {
+    metadataLookup.current[id] = {
+      centerOnNode,
+    };
+  }, []);
+
   return (
-    <div
-      ref={nodeRectDiv}
-      style={globalStyle}
-      onBlur={() => onSelected(false)}
-      onDoubleClick={() => {
-        const div = nodeRectDiv.current;
-        if (div === null) return;
-        panZoomRef.current?.showRectangle(div.getBoundingClientRect());
-      }}
-    >
+    <>
       <Draggable
         scale={scale}
         position={position}
@@ -483,11 +555,11 @@ function WebNode({
       >
         <Resizable
           scale={scale}
-          // enable={{
-          //   bottom: true,
-          //   right: true,
-          //   bottomRight: true,
-          // }}
+          enable={{
+            bottom: true,
+            right: true,
+            bottomRight: true,
+          }}
           onResizeStart={() => setResizing(true)}
           onResizeStop={(event) => {
             setResizing(false);
@@ -496,10 +568,10 @@ function WebNode({
           onResize={(event, direction, elementRef, delta) => {
             let { x: newX, y: newY } = position;
             if (['topLeft', 'bottomLeft', 'left'].includes(direction)) {
-              newX -= delta.width / scale;
+              newX -= delta.width * scale;
             }
             if (['topLeft', 'topRight', 'top'].includes(direction)) {
-              newY -= delta.height / scale;
+              newY -= delta.height * scale;
             }
             setPosition({ x: newX, y: newY });
             event.stopPropagation();
@@ -507,6 +579,17 @@ function WebNode({
           defaultSize={{ width, height }}
           style={frameStyle}
         >
+          <div
+            ref={nodeRectDiv}
+            style={{...globalStyle, width: '100%', height: '100%', position: 'absolute', top: 0}}
+            onBlur={() => onSelected(false)}
+            onMouseDown={(event) => {
+              if (event.altKey) {
+                event.stopPropagation();
+                centerOnNode();
+              }
+            }}
+          />
           {!selected && (
             <div
               onMouseDown={(event) => {
@@ -534,7 +617,7 @@ function WebNode({
           />
         </Resizable>
       </Draggable>
-    </div>
+    </>
   );
 }
 
@@ -546,4 +629,5 @@ export {
   IWebviewNode,
   ImageNode,
   NodeHelper,
+  MetadataLookup,
 };
