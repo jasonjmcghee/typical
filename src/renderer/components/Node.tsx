@@ -172,25 +172,16 @@ const GenericNode = ({
   ignoreInput,
   children,
 }: GenericNodeProps & HTMLAttributes<HTMLDivElement>) => {
-  const style: CSSProperties = {
-    width: '100%',
-    height: '100%',
-    borderRadius: '6px',
-  };
-
-  if (!selected || ignoreInput) {
-    // style.pointerEvents = 'none';
-  }
-
-  // if (selected) {
-  //   style.border = '4px solid rgba(0, 112, 243, 0.85)';
-  // }
-
   return (
     <div
       style={{
         height: '-webkit-fill-available',
         width: '-webkit-fill-available',
+        boxShadow: selected ?
+          '0px 3px 6px -4px rgba(0, 0, 0, 0.12), ' +
+          '0px 6px 16px rgba(0, 0, 0, 0.08), ' +
+          '0px 9px 28px 8px rgba(0, 0, 0, 0.05)'
+        : 'none',
       }}
     >
       <div
@@ -199,7 +190,7 @@ const GenericNode = ({
           position: 'absolute',
           top: '12px',
           color: 'white',
-          display: 'flex',
+          display: selected ? 'flex' : 'none',
           justifyContent: 'space-between',
           width: '-webkit-fill-available',
           paddingLeft: '6px',
@@ -225,7 +216,7 @@ const GenericNode = ({
         </button>
       </div>
       {/* <div style={style} onMouseDown={() => onChangeSelection(true)}> */}
-        {children}
+      {children}
       {/* </div> */}
     </div>
   );
@@ -267,24 +258,29 @@ const Webview = ({
   const style: CSSProperties = {
     width: '-webkit-fill-available',
     height: '-webkit-fill-available',
+    boxShadow:
+      '0px 3px 6px -4px rgba(0, 0, 0, 0.12), ' +
+      '0px 6px 16px rgba(0, 0, 0, 0.08), ' +
+      '0px 9px 28px 8px rgba(0, 0, 0, 0.05)',
   };
 
   if (!selected || ignoreInput) {
     style.pointerEvents = 'none';
   }
 
-  // if (selected) {
-  //   style.border = '4px solid rgba(0, 112, 243, 0.85)';
-  // }
-
   return (
     <>
-      <div
-        className={styles.webviewNavbar}
-      >
-        <div style={{
-          top: -48, position: 'absolute', fontSize: '2em', cursor: 'default'
-        }}>{webviewRef.current?.getTitle()}</div>
+      <div className={`${styles.webviewNavbar} ${selected ? '' : styles.hide}`}>
+        <div
+          style={{
+            top: -48,
+            position: 'absolute',
+            fontSize: '2em',
+            cursor: 'default',
+          }}
+        >
+          {webviewRef.current?.getTitle()}
+        </div>
         <div style={{ display: 'flex', gap: '20px' }}>
           <button
             type="button"
@@ -399,6 +395,8 @@ const Webview = ({
             flexDirection: 'column',
             justifyContent: 'space-around',
             alignItems: 'center',
+            background: '#33373b',
+            borderRadius: '6px',
           }}
         >
           <div>
@@ -492,16 +490,21 @@ function WebNode({
     globalStyle.display = 'none';
   }
 
-  const frameStyle: CSSProperties = {
+  let frameStyle: CSSProperties = {
     border: `4px ${selected ? 'white' : 'transparent'} solid`,
     position: 'absolute',
-    background: '#33373b',
+    background: 'transparent',
     padding: '48px 0 0 0',
     borderRadius: '6px',
     // position: 'relative',
-    boxShadow:
-      '0px 3px 6px -4px rgba(0, 0, 0, 0.12), 0px 6px 16px rgba(0, 0, 0, 0.08), 0px 9px 28px 8px rgba(0, 0, 0, 0.05)',
   };
+
+  if (selected) {
+    frameStyle = {
+      ...frameStyle,
+      background: '#33373b',
+    };
+  }
 
   const onSelected = (s: boolean) => {
     onChangeSelection(s);
@@ -522,9 +525,9 @@ function WebNode({
     const div = nodeRectDiv.current;
     const frame = frameRef.current;
     if (div === null || frame == null) return;
-    const { height: frameHeight, width: frameWidth } = frame.getBoundingClientRect();
-    let { height: divHeight, width: divWidth } = div.getBoundingClientRect();
-    const padding = 64;
+    const { height: frameHeight, width: frameWidth } =
+      frame.getBoundingClientRect();
+    const { height: divHeight, width: divWidth } = div.getBoundingClientRect();
     const targetScale = (frameHeight / divHeight) * 0.85;
 
     const newX = -currentScale * position.x;
@@ -534,8 +537,8 @@ function WebNode({
       newY + (frameHeight * 0.5 - divHeight * 0.5)
     );
     panZoomRef.current?.zoomTo(
-      (frameWidth * 0.5),
-      (frameHeight * 0.5),
+      frameWidth * 0.5,
+      frameHeight * 0.5,
       targetScale
     );
   }
@@ -662,5 +665,5 @@ export {
   NodeHelper,
   MetadataLookup,
   SerializableNodeMetadata,
-  SerializableMetadataLookup
+  SerializableMetadataLookup,
 };
