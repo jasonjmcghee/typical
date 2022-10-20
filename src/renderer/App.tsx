@@ -82,8 +82,6 @@ const Zoomable = ({ children, setPanZoom }: TZoomable) => {
     <div
       ref={divRef}
       style={{
-        width: '100%',
-        height: '100%',
         position: 'relative',
       }}
       // maxZoom={0.2}
@@ -96,34 +94,42 @@ const Zoomable = ({ children, setPanZoom }: TZoomable) => {
 const Main = () => {
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const panZoomRef = useRef<PanZoom | null>(null);
+  const [panning, setPanning] = useState(false);
+  const panningRef = useRef(panning);
   const [nodes, setNodes] = useState<{
     [id: string]: ReactElement<TNode, typeof WebNode>;
   }>({});
   const nodesRef = useRef<{
     [id: string]: ReactElement<TNode, typeof WebNode>;
   }>({});
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selectedIdRef = useRef(selectedId);
+  const nodeIdRef = useRef<string | null>(null);
   const baseRef = useRef<HTMLDivElement | null>(null);
 
   const metadataLookup = useRef<MetadataLookup>({});
   const nodeStackRef = useRef<string[]>([]);
-  const currentNodeRef = useRef<number>(0);
+  const nodeStackIndexRef = useRef<number>(0);
+  const didSwapNode = useRef<boolean>(false);
 
   const onSerialize = () => {
     // localStorage.setItem('nodes', JSON.stringify(metadataLookup.current));
   };
 
   function select(id: string | null) {
-    const temp = selectedIdRef.current;
-    selectedIdRef.current = id;
-    setSelectedId(selectedIdRef.current);
+    const temp = nodeIdRef.current;
+    nodeIdRef.current = id;
+
+    if (id != null) {
+      nodeStackRef.current[nodeStackIndexRef.current] = nodeStackRef.current[0];
+      nodeStackRef.current[0] = id;
+      nodeStackIndexRef.current = 0;
+    }
+
     if (temp !== null) {
       metadataLookup.current[temp].forceUpdate();
     }
 
-    if (temp !== selectedIdRef.current && selectedIdRef.current !== null) {
-      metadataLookup.current[selectedIdRef.current].forceUpdate();
+    if (temp !== nodeIdRef.current && nodeIdRef.current !== null) {
+      metadataLookup.current[nodeIdRef.current].forceUpdate();
     }
   }
 
@@ -158,16 +164,17 @@ const Main = () => {
         remove={() => {
           remove(id);
         }}
-        isSelected={() => selectedIdRef.current === id}
+        isSelected={() => nodeIdRef.current === id}
         // isSelected={() => true}
         onSerialize={onSerialize}
         onChangeSelection={(selected: boolean) => {
           if (selected) {
             select(id);
-          } else if (selectedIdRef.current === id) {
+          } else if (nodeIdRef.current === id) {
             select(null);
           }
         }}
+        panningRef={panningRef}
       />
     );
     nodesRef.current = {
@@ -232,41 +239,53 @@ const Main = () => {
       });
     }
 
-    const swapToNode = (delta: number) => {
+    const swapNodeForward = (delta: number) => {
+      didSwapNode.current = true;
       const numNodes = Object.keys(metadataLookup.current).length;
-      currentNodeRef.current = (currentNodeRef.current + delta) % numNodes;
-      const id: string = nodeStackRef.current[currentNodeRef.current];
+      nodeStackIndexRef.current =
+        (nodeStackIndexRef.current + delta) % numNodes;
+      const id: string = nodeStackRef.current[nodeStackIndexRef.current];
       metadataLookup.current[id].centerOnNode();
     };
 
     const swapNodeRelease = () => {
-      const temp = nodeStackRef.current[0];
-      nodeStackRef.current[0] = nodeStackRef.current[currentNodeRef.current];
-      nodeStackRef.current[currentNodeRef.current] = temp;
-      currentNodeRef.current = 0;
-      select(temp);
+      if (!didSwapNode.current) {
+        return;
+      }
+      didSwapNode.current = false;
+      select(nodeStackRef.current[nodeStackIndexRef.current]);
     };
 
     window.addEventListener('keydown', (event) => {
       if (event.metaKey) {
         if (event.key === '1') {
-          swapToNode(event.shiftKey ? -1 : 1);
+          swapNodeForward(event.shiftKey ? -1 : 1);
         } else if (event.key === '2') {
           const p = panZoomRef.current;
           const relWidth = (baseRef.current?.clientWidth || 0) * 0.5;
           const relHeight = (baseRef.current?.clientHeight || 0) * 0.5;
-          p?.zoomTo(relWidth, relHeight, 0.5 / (p?.getTransform()?.scale || 1));
+          p?.zoomTo(relWidth, relHeight, 0.3 / (p?.getTransform()?.scale || 1));
         }
       }
 
       if (event.key === 'Escape') {
         select(null);
       }
+
+      if (event.key === 'Meta') {
+        panningRef.current = true;
+        setPanning(panningRef.current);
+      }
     });
 
     window.addEventListener('keyup', (event) => {
       if (event.metaKey || event.key === 'Meta') {
         swapNodeRelease();
+      }
+
+      if (event.key === 'Meta') {
+        panningRef.current = false;
+        setPanning(panningRef.current);
       }
     });
 
@@ -338,11 +357,19 @@ const Main = () => {
       {/* <Canvas /> */}
       <div
         ref={baseRef}
+        className={"base-canvas"}
         style={{
           width: '100%',
           height: '100%',
           position: 'relative',
           overflow: 'hidden',
+          cursor: panning ? 'grab' : 'auto',
+        }}
+        onMouseDown={(event) => {
+          // TODO: selecting background doesn't always work
+          if (!event.metaKey && !event.ctrlKey && event.target.className === 'base-canvas') {
+            select(null);
+          }
         }}
       >
         <Zoomable
@@ -351,14 +378,7 @@ const Main = () => {
           }}
           // maxZoom={0.2}
         >
-          <div
-            className="nodes"
-            onMouseDown={(event) => {
-              if (event.target.className === 'nodes') {
-                select(null);
-              }
-            }}
-          >
+          <div className="nodes">
             {renderWebviews()}
           </div>
         </Zoomable>

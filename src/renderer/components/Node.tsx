@@ -44,6 +44,7 @@ type TNode = {
 
   // eslint-disable-next-line react/require-default-props
   hide?: boolean;
+  // eslint-disable-next-line react/require-default-props
 
   isSelected: () => boolean;
   onChangeSelection: (selected: boolean) => void;
@@ -51,6 +52,7 @@ type TNode = {
 
   panZoomRef: MutableRefObject<PanZoom | null>;
   frameRef: RefObject<HTMLDivElement | null>;
+  panningRef: RefObject<boolean>;
 
   readonly add: (details: TNodeDetails) => void;
   readonly remove: () => void;
@@ -190,7 +192,6 @@ const GenericNode = ({
         height: '-webkit-fill-available',
         width: '-webkit-fill-available',
       }}
-      onBlur={() => onChangeSelection(false)}
     >
       <div
         className="generic-navbar"
@@ -293,7 +294,9 @@ const Webview = ({
           alignItems: 'center',
         }}
       >
-        <div style={{top: -32, position: 'absolute'}}>{webviewRef.current?.getTitle()}</div>
+        <div style={{
+          top: -48, position: 'absolute', fontSize: '2em', cursor: 'default'
+        }}>{webviewRef.current?.getTitle()}</div>
         <div style={{ display: 'flex', gap: '20px' }}>
           <button
             type="button"
@@ -470,6 +473,7 @@ function WebNode({
   startSize,
   panZoomRef,
   frameRef,
+  panningRef,
   add,
   remove,
   isSelected,
@@ -501,7 +505,7 @@ function WebNode({
   }
 
   const frameStyle: CSSProperties = {
-    border: `1px ${selected ? 'blue' : 'transparent'} solid`,
+    border: `4px ${selected ? 'white' : 'transparent'} solid`,
     position: 'absolute',
     background: '#33373b',
     padding: '48px 2px 2px 2px',
@@ -530,15 +534,22 @@ function WebNode({
     const div = nodeRectDiv.current;
     const frame = frameRef.current;
     if (div === null || frame == null) return;
-    const { height: frameHeight } = frame.getBoundingClientRect();
-    const { height: divHeight } = div.getBoundingClientRect();
-    const offset = 64;
-    const targetScale = (frameHeight - offset) / divHeight;
+    const { height: frameHeight, width: frameWidth } = frame.getBoundingClientRect();
+    let { height: divHeight, width: divWidth } = div.getBoundingClientRect();
+    const padding = 64;
+    const targetScale = (frameHeight / divHeight) * 0.85;
 
     const newX = -currentScale * position.x;
-    const newY = -currentScale * (position.y + offset * 0.25);
-    panZoomRef.current?.moveTo(newX, newY);
-    panZoomRef.current?.zoomTo(-16, 0, targetScale);
+    const newY = -currentScale * position.y;
+    panZoomRef.current?.moveTo(
+      newX + (frameWidth * 0.5 - divWidth * 0.5),
+      newY + (frameHeight * 0.5 - divHeight * 0.5)
+    );
+    panZoomRef.current?.zoomTo(
+      (frameWidth * 0.5),
+      (frameHeight * 0.5),
+      targetScale
+    );
   }
 
   useEffect(() => {
@@ -554,7 +565,8 @@ function WebNode({
   return (
     <>
       <Draggable
-        disabled={!selected}
+        disabled={panningRef.current || false}
+        defaultClassName={panningRef.current ? '' : styles.draggable}
         scale={scale}
         position={position}
         onStart={(event) => {
@@ -574,26 +586,21 @@ function WebNode({
       >
         <Resizable
           scale={scale}
-          enable={{
-            bottom: true,
-            right: true,
-            bottomRight: true,
-          }}
           onResizeStart={() => setResizing(true)}
           onResizeStop={(event) => {
             setResizing(false);
             event.stopPropagation();
             onSerialize();
           }}
-          onResize={(event, direction, elementRef, delta) => {
-            const { x: newX, y: newY } = position;
-            // if (['topLeft', 'bottomLeft', 'left'].includes(direction)) {
-            //   newX -= delta.width * scale;
-            // }
-            // if (['topLeft', 'topRight', 'top'].includes(direction)) {
-            //   newY -= delta.height * scale;
-            // }
+          onResize={(event, direction, elementRef) => {
+            let { x: newX, y: newY } = position;
             const { width: w, height: h } = elementRef.getBoundingClientRect();
+            if (['topLeft', 'bottomLeft', 'left'].includes(direction)) {
+              newX -= (w - size.width) / scale;
+            }
+            if (['topLeft', 'topRight', 'top'].includes(direction)) {
+              newY -= (h - size.height) / scale;
+            }
             setSize({ width: w, height: h });
             setPosition({ x: newX, y: newY });
             event.stopPropagation();
@@ -611,7 +618,6 @@ function WebNode({
               top: 0,
               zIndex: selected ? -1 : 1,
             }}
-            onBlur={() => onSelected(false)}
             onMouseDown={(event) => {
               if (event.altKey) {
                 event.stopPropagation();
@@ -620,6 +626,9 @@ function WebNode({
               if (!selected && !event.metaKey) {
                 onSelected(true);
               }
+            }}
+            onMouseEnter={(event) => {
+              forceUpdate();
             }}
           />
           {/* {!selected && ( */}
