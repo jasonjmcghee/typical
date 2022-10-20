@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import panzoom, { PanZoom } from 'panzoom';
+import panzoom, { PanZoom, Transform } from 'panzoom';
 import { v4 as uuidv4 } from 'uuid';
 import { HomeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/solid';
 import { CloseWithEscape, CommandPalette } from './components/CommandPalette';
@@ -20,7 +20,7 @@ import {
   NodeHelper,
   MetadataLookup,
   SerializableNodeMetadata,
-  SerializableMetadataLookup
+  SerializableMetadataLookup,
 } from './components/Node';
 // import PrismaZoom from './components/PrismaZoom';
 
@@ -41,6 +41,7 @@ function makeTab(title: string, selected = false) {
 
 interface IZoomableExtra {
   setPanZoom: (p: PanZoom) => void;
+  onSerializePanZoom: () => void;
 }
 
 type TZoomable = DetailedHTMLProps<
@@ -49,7 +50,7 @@ type TZoomable = DetailedHTMLProps<
 > &
   IZoomableExtra;
 
-const Zoomable = ({ children, setPanZoom }: TZoomable) => {
+const Zoomable = ({ children, setPanZoom, onSerializePanZoom }: TZoomable) => {
   const divRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -75,6 +76,14 @@ const Zoomable = ({ children, setPanZoom }: TZoomable) => {
       });
 
       setPanZoom(instance);
+
+      instance.on('zoom', () => {
+        onSerializePanZoom();
+      });
+
+      instance.on('pan', () => {
+        onSerializePanZoom();
+      });
     }
   }, []);
 
@@ -110,8 +119,17 @@ const Main = () => {
   const nodeStackIndexRef = useRef<number>(0);
   const didSwapNode = useRef<boolean>(false);
 
-  const onSerialize = () => {
-    // localStorage.setItem('nodes', JSON.stringify(metadataLookup.current));
+  const onSerializePanZoom = () => {
+    localStorage.setItem(
+      'panzoom',
+      JSON.stringify({
+        transform: panZoomRef.current?.getTransform(),
+      })
+    );
+  };
+
+  const onSerializeNodes = () => {
+    localStorage.setItem('nodes', JSON.stringify(metadataLookup.current));
   };
 
   function select(id: string | null) {
@@ -120,7 +138,9 @@ const Main = () => {
 
     if (id != null) {
       if (nodeStackRef.current[nodeStackIndexRef.current] !== id) {
-        nodeStackIndexRef.current = nodeStackRef.current.findIndex((v) => v === id);
+        nodeStackIndexRef.current = nodeStackRef.current.findIndex(
+          (v) => v === id
+        );
       }
       nodeStackRef.current[nodeStackIndexRef.current] = nodeStackRef.current[0];
       nodeStackRef.current[0] = id;
@@ -149,8 +169,6 @@ const Main = () => {
     const transform = panZoomRef.current?.getTransform();
     const scaleCoef = 1 / (transform?.scale || 1);
     let { x, y } = position;
-    x = (x - (transform?.x || 0)) * scaleCoef;
-    y = (y - (transform?.y || 0)) * scaleCoef;
 
     const webview = (
       <WebNode
@@ -169,7 +187,7 @@ const Main = () => {
         }}
         isSelected={() => nodeIdRef.current === id}
         // isSelected={() => true}
-        onSerialize={onSerialize}
+        onSerialize={onSerializeNodes}
         onChangeSelection={(selected: boolean) => {
           if (selected) {
             select(id);
@@ -313,6 +331,15 @@ const Main = () => {
 
     // ipc.on('swap-node-forward', swapNodeForward);
     // ipc.on('swap-node-release', swapNodeRelease);
+
+    let panzoomData = localStorage.getItem('panzoom');
+    if (panzoomData) {
+      const parsedPanzoomData = JSON.parse(panzoomData) || {};
+      const {x, y, scale} = parsedPanzoomData.transform as Transform;
+      const currentScale = panZoomRef.current?.getTransform()?.scale || 1;
+      panZoomRef.current?.zoomTo(0, 0, scale / currentScale);
+      panZoomRef.current?.moveTo(x, y);
+    }
   }, []);
 
   return (
@@ -320,7 +347,9 @@ const Main = () => {
       <div className="title-bar-container">
         <div className="title-bar-padding" />
         <div className="title-bar">
-          <div className="home"><HomeIcon style={{height: 16}} /></div>
+          <div className="home">
+            <HomeIcon style={{ height: 16 }} />
+          </div>
           <div className="tabs">
             {makeTab('First workspace', true)}
             {makeTab('Second workspace')}
@@ -360,7 +389,7 @@ const Main = () => {
       {/* <Canvas /> */}
       <div
         ref={baseRef}
-        className={"base-canvas"}
+        className="base-canvas"
         style={{
           width: '100%',
           height: '100%',
@@ -370,7 +399,11 @@ const Main = () => {
         }}
         onMouseDown={(event) => {
           // TODO: selecting background doesn't always work
-          if (!event.metaKey && !event.ctrlKey && event.target.className === 'base-canvas') {
+          if (
+            !event.metaKey &&
+            !event.ctrlKey &&
+            event.target.className === 'base-canvas'
+          ) {
             select(null);
           }
         }}
@@ -379,11 +412,10 @@ const Main = () => {
           setPanZoom={(p) => {
             panZoomRef.current = p;
           }}
+          onSerializePanZoom={onSerializePanZoom}
           // maxZoom={0.2}
         >
-          <div className="nodes">
-            {renderWebviews()}
-          </div>
+          <div className="nodes">{renderWebviews()}</div>
         </Zoomable>
       </div>
     </>

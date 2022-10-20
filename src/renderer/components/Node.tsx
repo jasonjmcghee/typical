@@ -497,6 +497,7 @@ function WebNode({
     padding: '48px 0 0 0',
     borderRadius: '6px',
     // position: 'relative',
+    userSelect: selected ? 'auto' : 'none',
   };
 
   if (selected) {
@@ -553,6 +554,12 @@ function WebNode({
     };
   }, [position, size]);
 
+  useEffect(() => {
+    if (!dragging && !resizing) {
+      onSerialize();
+    }
+  }, [dragging, resizing])
+
   return (
     <>
       <Draggable
@@ -571,32 +578,34 @@ function WebNode({
             setPosition({ x: x_, y: y_ });
           }
           setDragging(false);
-          onSerialize();
         }}
         axis={resizing ? 'none' : 'both'}
       >
         <Resizable
           scale={scale}
+          size={size}
           onResizeStart={() => setResizing(true)}
           onResizeStop={(event) => {
             setResizing(false);
             event.stopPropagation();
-            onSerialize();
           }}
           onResize={(event, direction, elementRef) => {
             let { x: newX, y: newY } = position;
-            const { width: w, height: h } = elementRef.getBoundingClientRect();
+            let { width: w, height: h } = elementRef.getBoundingClientRect();
+            const scaleCoef = 1 / scale;
+            w *= scaleCoef;
+            h *= scaleCoef;
             if (['topLeft', 'bottomLeft', 'left'].includes(direction)) {
-              newX -= (w - size.width) / scale;
+              newX -= (w - size.width);
             }
             if (['topLeft', 'topRight', 'top'].includes(direction)) {
-              newY -= (h - size.height) / scale;
+              newY -= (h - size.height);
             }
             setSize({ width: w, height: h });
             setPosition({ x: newX, y: newY });
             event.stopPropagation();
           }}
-          defaultSize={startSize}
+          // defaultSize={startSize}
           style={frameStyle}
           minWidth={200}
           minHeight={180}
