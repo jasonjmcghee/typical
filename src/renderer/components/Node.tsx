@@ -3,44 +3,51 @@ import { Resizable } from 're-resizable';
 import {
   CSSProperties,
   HTMLAttributes,
-  MutableRefObject, RefObject,
+  MutableRefObject,
+  RefObject,
   useEffect,
   useRef,
-  useState
+  useState,
 } from 'react';
 import { PanZoom } from 'panzoom';
 import WebviewTag = Electron.WebviewTag;
 import {
   ArrowLeftIcon,
   ArrowPathIcon,
-  ArrowRightIcon, SignalSlashIcon,
-  XMarkIcon
+  ArrowRightIcon,
+  SignalSlashIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/solid';
 
 import styles from './Node.module.scss';
 
-interface NodeMetadata {
-  centerOnNode: () => void;
+interface SerializableNodeMetadata {
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+  nodeDetails: TNodeDetails;
 }
 
-type MetadataLookup = {[id: string]: NodeMetadata};
+interface NodeMetadata extends SerializableNodeMetadata {
+  centerOnNode: () => void;
+  forceUpdate: () => void;
+}
+
+type MetadataLookup = { [id: string]: NodeMetadata };
+type SerializableMetadataLookup = { [id: string]: SerializableNodeMetadata };
 
 type TNode = {
   id: string;
   metadataLookup: MutableRefObject<MetadataLookup>;
   nodeDetails: TNodeDetails;
-  x: number;
-  y: number;
-  // eslint-disable-next-line react/require-default-props
-  width?: number;
-  // eslint-disable-next-line react/require-default-props
-  height?: number;
+  startPosition: { x: number; y: number };
+  startSize: { width: number; height: number };
 
   // eslint-disable-next-line react/require-default-props
   hide?: boolean;
 
   isSelected: () => boolean;
   onChangeSelection: (selected: boolean) => void;
+  onSerialize: () => void;
 
   panZoomRef: MutableRefObject<PanZoom | null>;
   frameRef: RefObject<HTMLDivElement | null>;
@@ -164,13 +171,13 @@ const GenericNode = ({
   children,
 }: GenericNodeProps & HTMLAttributes<HTMLDivElement>) => {
   const style: CSSProperties = {
-    width: '-webkit-fill-available',
-    height: '-webkit-fill-available',
+    width: '100%',
+    height: '100%',
     borderRadius: '6px',
   };
 
   if (!selected || ignoreInput) {
-    style.pointerEvents = 'none';
+    // style.pointerEvents = 'none';
   }
 
   // if (selected) {
@@ -216,9 +223,9 @@ const GenericNode = ({
           <XMarkIcon />
         </button>
       </div>
-      <div style={style} onFocus={() => onChangeSelection(true)}>
+      {/* <div style={style} onMouseDown={() => onChangeSelection(true)}> */}
         {children}
-      </div>
+      {/* </div> */}
     </div>
   );
 };
@@ -239,11 +246,15 @@ const Webview = ({
   useEffect(() => {
     if (webviewRef.current !== null) {
       updateStyle(webviewRef.current);
+      webviewRef.current.addEventListener('did-finish-load', async () => {
+        forceUpdate();
+      });
       webviewRef.current.addEventListener('new-window', async (event) => {
         add(NodeHelper.webview(event.url));
       });
-      webviewRef.current.addEventListener('did-navigate', async () => {
+      webviewRef.current.addEventListener('did-navigate', async (event) => {
         setNotFound(false);
+        setUrlValue(event.url);
         forceUpdate();
       });
       webviewRef.current.addEventListener('did-fail-load', async () => {
@@ -282,6 +293,7 @@ const Webview = ({
           alignItems: 'center',
         }}
       >
+        <div style={{top: -32, position: 'absolute'}}>{webviewRef.current?.getTitle()}</div>
         <div style={{ display: 'flex', gap: '20px' }}>
           <button
             type="button"
@@ -429,7 +441,9 @@ function CompNode({
       <GenericNode {...rest}>
         <textarea
           onMouseDown={(event) => event.stopPropagation()}
-          className={styles.textNode} defaultValue={nodeDetails.text} />
+          className={styles.textNode}
+          defaultValue={nodeDetails.text}
+        />
       </GenericNode>
     );
   }
@@ -452,27 +466,23 @@ function WebNode({
   id,
   metadataLookup,
   nodeDetails,
-  x,
-  y,
+  startPosition,
+  startSize,
   panZoomRef,
   frameRef,
   add,
   remove,
   isSelected,
   onChangeSelection,
-  width = 640,
-  height = 480,
+  onSerialize,
   hide = false,
 }: TNode) {
-  const metadata = metadataLookup.current[id];
-
   const forceUpdate = useForceUpdate();
   const nodeRectDiv = useRef<HTMLDivElement | null>(null);
-  const [position, setPosition] = useState({ x, y });
+  const [position, setPosition] = useState(startPosition);
+  const [size, setSize] = useState(startSize);
   const [resizing, setResizing] = useState(false);
   const [dragging, setDragging] = useState(false);
-
-  const [zoomIn, setZoomIn] = useState(false);
 
   const selected = isSelected();
 
@@ -491,16 +501,19 @@ function WebNode({
   }
 
   const frameStyle: CSSProperties = {
+    border: `1px ${selected ? 'blue' : 'transparent'} solid`,
     position: 'absolute',
     background: '#33373b',
     padding: '48px 2px 2px 2px',
     borderRadius: '6px',
     // position: 'relative',
-    boxShadow: '0px 3px 6px -4px rgba(0, 0, 0, 0.12), 0px 6px 16px rgba(0, 0, 0, 0.08), 0px 9px 28px 8px rgba(0, 0, 0, 0.05)',
+    boxShadow:
+      '0px 3px 6px -4px rgba(0, 0, 0, 0.12), 0px 6px 16px rgba(0, 0, 0, 0.08), 0px 9px 28px 8px rgba(0, 0, 0, 0.05)',
   };
 
   const onSelected = (s: boolean) => {
     onChangeSelection(s);
+    forceUpdate();
   };
 
   function getCenter(w: number, h: number) {
@@ -522,7 +535,7 @@ function WebNode({
     const offset = 64;
     const targetScale = (frameHeight - offset) / divHeight;
 
-    const newX = -currentScale * (position.x);
+    const newX = -currentScale * position.x;
     const newY = -currentScale * (position.y + offset * 0.25);
     panZoomRef.current?.moveTo(newX, newY);
     panZoomRef.current?.zoomTo(-16, 0, targetScale);
@@ -531,12 +544,17 @@ function WebNode({
   useEffect(() => {
     metadataLookup.current[id] = {
       centerOnNode,
+      forceUpdate,
+      position,
+      size,
+      nodeDetails,
     };
-  }, []);
+  }, [position, size]);
 
   return (
     <>
       <Draggable
+        disabled={!selected}
         scale={scale}
         position={position}
         onStart={(event) => {
@@ -550,6 +568,7 @@ function WebNode({
             setPosition({ x: x_, y: y_ });
           }
           setDragging(false);
+          onSerialize();
         }}
         axis={resizing ? 'none' : 'both'}
       >
@@ -564,49 +583,62 @@ function WebNode({
           onResizeStop={(event) => {
             setResizing(false);
             event.stopPropagation();
+            onSerialize();
           }}
           onResize={(event, direction, elementRef, delta) => {
-            let { x: newX, y: newY } = position;
-            if (['topLeft', 'bottomLeft', 'left'].includes(direction)) {
-              newX -= delta.width * scale;
-            }
-            if (['topLeft', 'topRight', 'top'].includes(direction)) {
-              newY -= delta.height * scale;
-            }
+            const { x: newX, y: newY } = position;
+            // if (['topLeft', 'bottomLeft', 'left'].includes(direction)) {
+            //   newX -= delta.width * scale;
+            // }
+            // if (['topLeft', 'topRight', 'top'].includes(direction)) {
+            //   newY -= delta.height * scale;
+            // }
+            const { width: w, height: h } = elementRef.getBoundingClientRect();
+            setSize({ width: w, height: h });
             setPosition({ x: newX, y: newY });
             event.stopPropagation();
           }}
-          defaultSize={{ width, height }}
+          defaultSize={startSize}
           style={frameStyle}
         >
           <div
             ref={nodeRectDiv}
-            style={{...globalStyle, width: '100%', height: '100%', position: 'absolute', top: 0}}
+            style={{
+              ...globalStyle,
+              width: '100%',
+              height: '100%',
+              position: 'absolute',
+              top: 0,
+              zIndex: selected ? -1 : 1,
+            }}
             onBlur={() => onSelected(false)}
             onMouseDown={(event) => {
               if (event.altKey) {
                 event.stopPropagation();
                 centerOnNode();
               }
+              if (!selected && !event.metaKey) {
+                onSelected(true);
+              }
             }}
           />
-          {!selected && (
-            <div
-              onMouseDown={(event) => {
-                if (!event.ctrlKey) {
-                  onSelected(true);
-                  event.stopPropagation();
-                }
-              }}
-              style={{
-                width: '100%',
-                height: '100%',
-                position: 'absolute',
-                maxHeight: '-webkit-fill-available',
-                maxWidth: '-webkit-fill-available',
-              }}
-            />
-          )}
+          {/* {!selected && ( */}
+          {/*   <div */}
+          {/*     onMouseDown={(event) => { */}
+          {/*       if (!event.ctrlKey) { */}
+          {/*         onSelected(true); */}
+          {/*         event.stopPropagation(); */}
+          {/*       } */}
+          {/*     }} */}
+          {/*     style={{ */}
+          {/*       width: '100%', */}
+          {/*       height: '100%', */}
+          {/*       position: 'absolute', */}
+          {/*       maxHeight: '-webkit-fill-available', */}
+          {/*       maxWidth: '-webkit-fill-available', */}
+          {/*     }} */}
+          {/*   /> */}
+          {/* )} */}
           <CompNode
             add={add}
             remove={remove}
@@ -630,4 +662,6 @@ export {
   ImageNode,
   NodeHelper,
   MetadataLookup,
+  SerializableNodeMetadata,
+  SerializableMetadataLookup
 };

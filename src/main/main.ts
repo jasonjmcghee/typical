@@ -74,6 +74,7 @@ const createWindow = async () => {
     show: true,
     width: 1024,
     height: 728,
+    // vibrancy: 'light',
     icon: getAssetPath('icon.png'),
     // TODO: completely screws up dragging
     // titleBarStyle: 'hidden',

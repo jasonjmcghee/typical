@@ -92,7 +92,7 @@ body, * {
 .home {
   height: 100%;
   background-color: #33373b;
-  padding: 0 16px;
+  padding: 0 8px;
   display: flex;
   align-items: center;
 }

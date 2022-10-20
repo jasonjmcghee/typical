@@ -4,22 +4,24 @@ import {
   DetailedHTMLProps,
   HTMLAttributes,
   ReactElement,
-  ReactNode,
   useEffect,
   useRef,
   useState,
 } from 'react';
 import panzoom, { PanZoom } from 'panzoom';
 import { v4 as uuidv4 } from 'uuid';
-import { MagnifyingGlassIcon } from '@heroicons/react/24/solid';
-import { KeyPress } from './hooks/useKeyPress';
-import {
-  CloseWithEscape,
-  CommandPalette,
-  OpenOnKeyPress,
-} from './components/CommandPalette';
+import { HomeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/solid';
+import { CloseWithEscape, CommandPalette } from './components/CommandPalette';
 // import Canvas from "./components/Canvas";
-import { WebNode, TNode, TNodeDetails, NodeHelper, MetadataLookup } from './components/Node';
+import {
+  WebNode,
+  TNode,
+  TNodeDetails,
+  NodeHelper,
+  MetadataLookup,
+  SerializableNodeMetadata,
+  SerializableMetadataLookup
+} from './components/Node';
 // import PrismaZoom from './components/PrismaZoom';
 
 function setTitle(title: string) {
@@ -80,11 +82,9 @@ const Zoomable = ({ children, setPanZoom }: TZoomable) => {
     <div
       ref={divRef}
       style={{
-        width: '4000px',
-        height: '3000px',
+        width: '100%',
+        height: '100%',
         position: 'relative',
-        border: '4px solid white',
-        padding: '40px',
       }}
       // maxZoom={0.2}
     >
@@ -110,9 +110,21 @@ const Main = () => {
   const nodeStackRef = useRef<string[]>([]);
   const currentNodeRef = useRef<number>(0);
 
+  const onSerialize = () => {
+    // localStorage.setItem('nodes', JSON.stringify(metadataLookup.current));
+  };
+
   function select(id: string | null) {
+    const temp = selectedIdRef.current;
     selectedIdRef.current = id;
     setSelectedId(selectedIdRef.current);
+    if (temp !== null) {
+      metadataLookup.current[temp].forceUpdate();
+    }
+
+    if (temp !== selectedIdRef.current && selectedIdRef.current !== null) {
+      metadataLookup.current[selectedIdRef.current].forceUpdate();
+    }
   }
 
   function remove(id: string) {
@@ -122,19 +134,12 @@ const Main = () => {
     return webview;
   }
 
-  function add(nodeDetails: TNodeDetails, position?: { x: number; y: number }) {
-    const id = uuidv4();
+  function add(metadata: SerializableNodeMetadata, existingId?: string) {
+    const { position, size, nodeDetails } = metadata;
+    const id = existingId ?? uuidv4();
     const transform = panZoomRef.current?.getTransform();
     const scaleCoef = 1 / (transform?.scale || 1);
-    let { x, y } = { x: position?.x || 0, y: position?.y || 0 };
-    if (position === undefined) {
-      const rect = baseRef.current?.getBoundingClientRect();
-      if (rect) {
-        x = (rect.width - rect.x) * 0.5;
-        y = (rect.height - rect.y) * 0.5;
-      }
-    }
-
+    let { x, y } = position;
     x = (x - (transform?.x || 0)) * scaleCoef;
     y = (y - (transform?.y || 0)) * scaleCoef;
 
@@ -143,18 +148,19 @@ const Main = () => {
         id={id}
         metadataLookup={metadataLookup}
         nodeDetails={nodeDetails}
-        x={x}
-        y={y}
+        startPosition={{ x, y }}
+        startSize={size}
         panZoomRef={panZoomRef}
         frameRef={baseRef}
         add={(details: TNodeDetails) => {
-          add(details);
+          addDefault(details);
         }}
         remove={() => {
           remove(id);
         }}
-        // isSelected={() => selectedIdRef.current === id}
-        isSelected={() => true}
+        isSelected={() => selectedIdRef.current === id}
+        // isSelected={() => true}
+        onSerialize={onSerialize}
         onChangeSelection={(selected: boolean) => {
           if (selected) {
             select(id);
@@ -172,24 +178,59 @@ const Main = () => {
     nodeStackRef.current.push(id);
   }
 
+  function addDefault(
+    nodeDetails: TNodeDetails,
+    position?: { x: number; y: number },
+    size?: { width: number; height: number }
+  ) {
+    const rect = baseRef.current?.getBoundingClientRect() ?? {
+      x: 40,
+      y: 40,
+      width: 0,
+      height: 0,
+    };
+    return add({
+      nodeDetails,
+      position: position ?? {
+        x: (rect.width - rect.x) * 0.5,
+        y: (rect.height - rect.y) * 0.5,
+      },
+      size: size ?? {
+        width: 640,
+        height: 480,
+      },
+    });
+  }
+
   const renderWebviews = () => {
     return Object.values(nodes);
   };
 
   useEffect(() => {
-    add(
-      NodeHelper.text(
-        'Welcome!\n' +
-          '\n' +
-          'Command Palette: Cmd+K\n' +
-          'Pan: Cmd + Drag\n' +
-          'New Browser: Cmd+N\n' +
-          'New Text Box: Cmd+T\n' +
-          'Open at location: Right Click\n'
-      ),
-      { x: 0, y: 0 }
-    );
-    add(NodeHelper.webview('www.google.com'), { x: 320, y: 320 });
+    let loadedData = localStorage.getItem('nodes');
+    if (loadedData) {
+      loadedData = JSON.parse(loadedData);
+    }
+    const existingNodes = (loadedData || {}) as SerializableMetadataLookup;
+    if (Object.keys(existingNodes).length === 0) {
+      addDefault(
+        NodeHelper.text(
+          'Welcome!\n' +
+            '\n' +
+            'Command Palette: Cmd+K\n' +
+            'Pan: Cmd + Drag\n' +
+            'New Browser: Cmd+N\n' +
+            'New Text Box: Cmd+T\n' +
+            'Open at location: Right Click\n'
+        ),
+        { x: 40, y: 40 }
+      );
+      addDefault(NodeHelper.webview('www.google.com'), { x: 360, y: 360 });
+    } else {
+      Object.entries(existingNodes).forEach(([key, value]) => {
+        add(value, key);
+      });
+    }
 
     const swapToNode = (delta: number) => {
       const numNodes = Object.keys(metadataLookup.current).length;
@@ -203,6 +244,7 @@ const Main = () => {
       nodeStackRef.current[0] = nodeStackRef.current[currentNodeRef.current];
       nodeStackRef.current[currentNodeRef.current] = temp;
       currentNodeRef.current = 0;
+      select(temp);
     };
 
     window.addEventListener('keydown', (event) => {
@@ -216,6 +258,10 @@ const Main = () => {
           p?.zoomTo(relWidth, relHeight, 0.5 / (p?.getTransform()?.scale || 1));
         }
       }
+
+      if (event.key === 'Escape') {
+        select(null);
+      }
     });
 
     window.addEventListener('keyup', (event) => {
@@ -228,14 +274,14 @@ const Main = () => {
     ipc.on('add-webview', (args) => {
       const objs = args as { url: string; x?: number; y?: number }[];
       objs.forEach(({ url, x, y }) => {
-        add(NodeHelper.webview(url), { x: x || 0, y: y || 0 });
+        addDefault(NodeHelper.webview(url), { x: x || 0, y: y || 0 });
       });
     });
 
     ipc.on('add-text', (args) => {
       const objs = args as { text: string; x?: number; y?: number }[];
       objs.forEach(({ text, x, y }) => {
-        add(NodeHelper.text(text), { x: x || 0, y: y || 0 });
+        addDefault(NodeHelper.text(text), { x: x || 0, y: y || 0 });
       });
     });
 
@@ -252,7 +298,7 @@ const Main = () => {
       <div className="title-bar-container">
         <div className="title-bar-padding" />
         <div className="title-bar">
-          <div className="home">Home</div>
+          <div className="home"><HomeIcon style={{height: 16}} /></div>
           <div className="tabs">
             {makeTab('First workspace', true)}
             {makeTab('Second workspace')}
@@ -283,7 +329,7 @@ const Main = () => {
           onCommand={(details: string | TNodeDetails) => {
             // AddWebview(w);
             if (NodeHelper.isNode(details)) {
-              add(details);
+              addDefault(details);
             }
             setShowCommandPalette(false);
           }}
@@ -307,8 +353,10 @@ const Main = () => {
         >
           <div
             className="nodes"
-            onFocus={() => {
-              select(null);
+            onMouseDown={(event) => {
+              if (event.target.className === 'nodes') {
+                select(null);
+              }
             }}
           >
             {renderWebviews()}
