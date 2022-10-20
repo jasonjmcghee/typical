@@ -119,6 +119,15 @@ const Main = () => {
   const nodeStackIndexRef = useRef<number>(0);
   const didSwapNode = useRef<boolean>(false);
 
+  const [justSelected, setJustSelected] = useState(false);
+
+  useEffect(() => {
+    if (justSelected && nodeIdRef.current) {
+      metadataLookup.current[nodeIdRef.current].centerOnNode();
+      setJustSelected(false);
+    }
+  }, [justSelected]);
+
   const onSerializePanZoom = () => {
     localStorage.setItem(
       'panzoom',
@@ -158,8 +167,17 @@ const Main = () => {
 
   function remove(id: string) {
     const { [id]: webview, ...rest } = nodesRef.current;
+    delete metadataLookup.current[id];
+    const index = nodeStackRef.current.findIndex(
+      (v) => v === id
+    );
+    nodeStackRef.current.splice(index, 1);
     nodesRef.current = rest;
+    if (id === nodeIdRef.current) {
+      nodeIdRef.current = null;
+    }
     setNodes(nodesRef.current);
+    onSerializeNodes();
     return webview;
   }
 
@@ -168,7 +186,7 @@ const Main = () => {
     const id = existingId ?? uuidv4();
     const transform = panZoomRef.current?.getTransform();
     const scaleCoef = 1 / (transform?.scale || 1);
-    let { x, y } = position;
+    const { x, y } = position;
 
     const webview = (
       <WebNode
@@ -274,8 +292,25 @@ const Main = () => {
         return;
       }
       didSwapNode.current = false;
-      select(nodeStackRef.current[nodeStackIndexRef.current]);
+      const id = nodeStackRef.current[nodeStackIndexRef.current];
+      select(id);
+      setJustSelected(true);
     };
+
+    window.addEventListener('dragend', (event) => {
+      if (event.target) {
+        const target = event.target as HTMLTextAreaElement;
+        if (target && target.selectionStart && target.selectionEnd) {
+          const text = target.innerHTML.substring(
+            target.selectionStart,
+            target.selectionEnd
+          );
+          addDefault(NodeHelper.text(text), {x: event.x, y: event.y});
+        } else {
+          debugger;
+        }
+      }
+    });
 
     window.addEventListener('keydown', (event) => {
       if (event.metaKey) {
@@ -332,10 +367,10 @@ const Main = () => {
     // ipc.on('swap-node-forward', swapNodeForward);
     // ipc.on('swap-node-release', swapNodeRelease);
 
-    let panzoomData = localStorage.getItem('panzoom');
+    const panzoomData = localStorage.getItem('panzoom');
     if (panzoomData) {
       const parsedPanzoomData = JSON.parse(panzoomData) || {};
-      const {x, y, scale} = parsedPanzoomData.transform as Transform;
+      const { x, y, scale } = parsedPanzoomData.transform as Transform;
       const currentScale = panZoomRef.current?.getTransform()?.scale || 1;
       panZoomRef.current?.zoomTo(0, 0, scale / currentScale);
       panZoomRef.current?.moveTo(x, y);

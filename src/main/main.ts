@@ -10,6 +10,7 @@
  */
 import path from 'path';
 import { app, BrowserWindow, BrowserView, shell, ipcMain } from 'electron';
+import Store from 'electron-store';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
@@ -70,10 +71,13 @@ const createWindow = async () => {
     return path.join(RESOURCES_PATH, ...paths);
   };
 
+  const config = new Store();
+  const { width, height } = config.get('winBounds', {});
+
   mainWindow = new BrowserWindow({
     show: true,
-    width: 1024,
-    height: 728,
+    width: width || 1024,
+    height: height || 768,
     // vibrancy: 'light',
     icon: getAssetPath('icon.png'),
     // TODO: completely screws up dragging
@@ -125,6 +129,10 @@ const createWindow = async () => {
     } else {
       mainWindow.show();
     }
+  });
+
+  mainWindow.on('close', () => {
+    config.set('winBounds', mainWindow.getBounds())
   });
 
   mainWindow.on('closed', () => {

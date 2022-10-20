@@ -163,6 +163,7 @@ interface CompNodeProps {
   selected: undefined | boolean;
   onChangeSelection: (selected: boolean) => void;
   ignoreInput: undefined | boolean;
+  onSerialize: () => void;
 }
 
 const GenericNode = ({
@@ -172,17 +173,16 @@ const GenericNode = ({
   ignoreInput,
   children,
 }: GenericNodeProps & HTMLAttributes<HTMLDivElement>) => {
-  return (
-    selected
-      ? <div
+  return selected ? (
+    <div
       style={{
         height: '-webkit-fill-available',
         width: '-webkit-fill-available',
-        boxShadow: selected ?
-          '0px 3px 6px -4px rgba(0, 0, 0, 0.12), ' +
-          '0px 6px 16px rgba(0, 0, 0, 0.08), ' +
-          '0px 9px 28px 8px rgba(0, 0, 0, 0.05)'
-        : 'none',
+        boxShadow: selected
+          ? '0px 3px 6px -4px rgba(0, 0, 0, 0.12), ' +
+            '0px 6px 16px rgba(0, 0, 0, 0.08), ' +
+            '0px 9px 28px 8px rgba(0, 0, 0, 0.05)'
+          : 'none',
       }}
     >
       <div
@@ -191,7 +191,7 @@ const GenericNode = ({
           position: 'absolute',
           top: '12px',
           color: 'white',
-          display: selected ? 'flex' : 'none',
+          display: 'flex',
           justifyContent: 'space-between',
           width: '-webkit-fill-available',
           paddingLeft: '6px',
@@ -220,7 +220,8 @@ const GenericNode = ({
       {children}
       {/* </div> */}
     </div>
-      : <>{children}</>
+  ) : (
+    <>{children}</>
   );
 };
 
@@ -231,11 +232,17 @@ const Webview = ({
   selected,
   onChangeSelection,
   ignoreInput,
-}: CompNodeProps & { url: string }) => {
+  onUpdateUrl,
+}: CompNodeProps & { url: string, onUpdateUrl: (url: string) => void }) => {
   const forceUpdate = useForceUpdate();
   const webviewRef = useRef<WebviewTag>(null);
   const [urlValue, setUrlValue] = useState<string>(url);
   const [notFound, setNotFound] = useState<boolean>(false);
+
+  const updateUrl = (u: string) => {
+    setUrlValue(u);
+    onUpdateUrl(u);
+  };
 
   useEffect(() => {
     if (webviewRef.current !== null) {
@@ -248,7 +255,7 @@ const Webview = ({
       });
       webviewRef.current.addEventListener('did-navigate', async (event) => {
         setNotFound(false);
-        setUrlValue(event.url);
+        updateUrl(event.url);
         forceUpdate();
       });
       webviewRef.current.addEventListener('did-fail-load', async () => {
@@ -363,7 +370,7 @@ const Webview = ({
             }}
             type="text"
             value={urlValue}
-            onChange={(event) => setUrlValue(event.target.value)}
+            onChange={(event) => updateUrl(event.target.value)}
           />
           <button
             type="submit"
@@ -424,6 +431,7 @@ function CompNode({
   nodeDetails,
   add,
   selected,
+                    onSerialize,
   ...rest
 }: CompNodeProps & {
   nodeDetails: TNodeDetails;
@@ -431,27 +439,41 @@ function CompNode({
   if (NodeHelper.isText(nodeDetails)) {
     return (
       <GenericNode selected={selected} {...rest}>
-        {selected ?
+        {selected ? (
           <textarea
             onMouseDown={(event) => event.stopPropagation()}
             className={styles.textNode}
             defaultValue={nodeDetails.text}
+            onChange={(event) => {
+              nodeDetails.text = event.target.value;
+              onSerialize();
+            }}
           />
-          : <pre className={styles.textNode}>
-            {nodeDetails.text}
-          </pre>
-        }
+        ) : (
+          <pre className={styles.textNode}>{nodeDetails.text}</pre>
+        )}
       </GenericNode>
     );
   }
 
   if (NodeHelper.isWebview(nodeDetails)) {
-    return <Webview add={add} url={nodeDetails.url} {...rest} />;
+    return (
+      <Webview
+        add={add}
+        url={nodeDetails.url}
+        selected={selected}
+        {...rest}
+        onUpdateUrl={(url: string) => {
+          nodeDetails.url = url;
+          onSerialize();
+        }}
+      />
+    );
   }
 
   if (NodeHelper.isImage(nodeDetails)) {
     return (
-      <GenericNode {...rest}>
+      <GenericNode selected={selected} {...rest}>
         <img src={nodeDetails.url} alt={nodeDetails.alt || 'none'} />
       </GenericNode>
     );
@@ -537,7 +559,8 @@ function WebNode({
     const { height: frameHeight, width: frameWidth } =
       frame.getBoundingClientRect();
     const { height: divHeight, width: divWidth } = div.getBoundingClientRect();
-    const targetScale = (frameHeight / divHeight) * 0.85;
+    const targetScale =
+      Math.min(frameHeight / divHeight, frameWidth / divWidth) * 0.85;
 
     const newX = -currentScale * position.x;
     const newY = -currentScale * position.y;
@@ -566,7 +589,7 @@ function WebNode({
     if (!dragging && !resizing) {
       onSerialize();
     }
-  }, [dragging, resizing])
+  }, [dragging, resizing]);
 
   return (
     <>
@@ -590,7 +613,11 @@ function WebNode({
         axis={resizing ? 'none' : 'both'}
       >
         <Resizable
-          className={selected || nodeDetails.type === 'webview' ? '' : styles.forceFitContent}
+          className={
+            selected || nodeDetails.type === 'webview'
+              ? ''
+              : styles.forceFitContent
+          }
           scale={scale}
           size={size}
           onResizeStart={() => setResizing(true)}
@@ -605,10 +632,10 @@ function WebNode({
             w *= scaleCoef;
             h *= scaleCoef;
             if (['topLeft', 'bottomLeft', 'left'].includes(direction)) {
-              newX -= (w - size.width);
+              newX -= w - size.width;
             }
             if (['topLeft', 'topRight', 'top'].includes(direction)) {
-              newY -= (h - size.height);
+              newY -= h - size.height;
             }
             setSize({ width: w, height: h });
             setPosition({ x: newX, y: newY });
@@ -666,6 +693,7 @@ function WebNode({
             onChangeSelection={onSelected}
             nodeDetails={nodeDetails}
             ignoreInput={dragging || resizing}
+            onSerialize={onSerialize}
           />
         </Resizable>
       </Draggable>

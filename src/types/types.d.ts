@@ -1,1 +1,1 @@
-declare module 'react-prismazoom';
+declare module 'electron-config';
