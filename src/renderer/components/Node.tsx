@@ -173,7 +173,8 @@ const GenericNode = ({
   children,
 }: GenericNodeProps & HTMLAttributes<HTMLDivElement>) => {
   return (
-    <div
+    selected
+      ? <div
       style={{
         height: '-webkit-fill-available',
         width: '-webkit-fill-available',
@@ -219,6 +220,7 @@ const GenericNode = ({
       {children}
       {/* </div> */}
     </div>
+      : <>{children}</>
   );
 };
 
@@ -421,18 +423,24 @@ const Webview = ({
 function CompNode({
   nodeDetails,
   add,
+  selected,
   ...rest
 }: CompNodeProps & {
   nodeDetails: TNodeDetails;
 }) {
   if (NodeHelper.isText(nodeDetails)) {
     return (
-      <GenericNode {...rest}>
-        <textarea
-          onMouseDown={(event) => event.stopPropagation()}
-          className={styles.textNode}
-          defaultValue={nodeDetails.text}
-        />
+      <GenericNode selected={selected} {...rest}>
+        {selected ?
+          <textarea
+            onMouseDown={(event) => event.stopPropagation()}
+            className={styles.textNode}
+            defaultValue={nodeDetails.text}
+          />
+          : <pre className={styles.textNode}>
+            {nodeDetails.text}
+          </pre>
+        }
       </GenericNode>
     );
   }
@@ -582,6 +590,7 @@ function WebNode({
         axis={resizing ? 'none' : 'both'}
       >
         <Resizable
+          className={selected || nodeDetails.type === 'webview' ? '' : styles.forceFitContent}
           scale={scale}
           size={size}
           onResizeStart={() => setResizing(true)}
