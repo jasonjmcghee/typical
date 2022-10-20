@@ -17,3 +17,16 @@ $default-font: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubun
 .draggable {
   cursor: move;
 }
+
+.webviewNavbar {
+  position: absolute;
+  top: 12px;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  width: -webkit-fill-available;
+  padding-left: 6px;
+  padding-right: 6px;
+  gap: 20px;
+  align-items: center;
+}

@@ -280,19 +280,7 @@ const Webview = ({
   return (
     <>
       <div
-        className="webview-navbar"
-        style={{
-          position: 'absolute',
-          top: '12px',
-          color: 'white',
-          display: 'flex',
-          justifyContent: 'space-between',
-          width: '-webkit-fill-available',
-          paddingLeft: '6px',
-          paddingRight: '6px',
-          gap: '20px',
-          alignItems: 'center',
-        }}
+        className={styles.webviewNavbar}
       >
         <div style={{
           top: -48, position: 'absolute', fontSize: '2em', cursor: 'default'
@@ -508,7 +496,7 @@ function WebNode({
     border: `4px ${selected ? 'white' : 'transparent'} solid`,
     position: 'absolute',
     background: '#33373b',
-    padding: '48px 2px 2px 2px',
+    padding: '48px 0 0 0',
     borderRadius: '6px',
     // position: 'relative',
     boxShadow:
@@ -607,6 +595,8 @@ function WebNode({
           }}
           defaultSize={startSize}
           style={frameStyle}
+          minWidth={200}
+          minHeight={180}
         >
           <div
             ref={nodeRectDiv}

@@ -119,6 +119,9 @@ const Main = () => {
     nodeIdRef.current = id;
 
     if (id != null) {
+      if (nodeStackRef.current[nodeStackIndexRef.current] !== id) {
+        nodeStackIndexRef.current = nodeStackRef.current.findIndex((v) => v === id);
+      }
       nodeStackRef.current[nodeStackIndexRef.current] = nodeStackRef.current[0];
       nodeStackRef.current[0] = id;
       nodeStackIndexRef.current = 0;
