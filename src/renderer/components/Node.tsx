@@ -601,8 +601,7 @@ function WebNode({
     });
   }, []);
 
-  const transform = panZoomRef.current?.getTransform();
-  const scale = transform.scale ?? 1;
+  const scale = panZoomRef.current?.getTransform()?.scale ?? 1;
 
   const globalStyle: CSSProperties = {};
   if (hide) {
@@ -631,17 +630,8 @@ function WebNode({
     forceUpdate();
   };
 
-  function getCenter(w: number, h: number) {
-    const currentScale = panZoomRef.current?.getTransform().scale || 1;
-    const frameWidth = frameRef.current?.clientWidth ?? 0;
-    const frameHeight = frameRef.current?.clientHeight ?? 0;
-    const newX = -currentScale * (position.x + w * 0.5) + frameWidth * 0.5;
-    const newY = -currentScale * (position.y + h * 0.5) + frameHeight * 0.5;
-    return { newX, newY };
-  }
-
   function centerOnNode() {
-    const currentScale = panZoomRef.current?.getTransform().scale || 1;
+    const currentScale = panZoomRef.current?.getTransform()?.scale ?? 1;
     const div = nodeRectDiv.current;
     const frame = frameRef.current;
     if (div === null || frame == null) return;
@@ -712,6 +702,7 @@ function WebNode({
           onResize={(event, direction, elementRef) => {
             let { x: newX, y: newY } = position;
             let { width: w, height: h } = elementRef.getBoundingClientRect();
+            const scale = panZoomRef.current?.getTransform()?.scale ?? 1;
             const scaleCoef = 1 / scale;
             w *= scaleCoef;
             h *= scaleCoef;

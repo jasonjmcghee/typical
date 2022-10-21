@@ -22,7 +22,6 @@ import {
   SerializableNodeMetadata,
   SerializableMetadataLookup,
 } from './components/Node';
-// import PrismaZoom from './components/PrismaZoom';
 
 function setTitle(title: string) {
   window.electron.ipcRenderer.sendMessage('set-title', title);
@@ -157,13 +156,6 @@ const Main = () => {
   };
 
   function select(id: string | null) {
-
-    console.log(
-      "Before",
-      nodeStackRef.current.map((id) =>
-        metadataLookup.current[id].nodeDetails
-      )
-    );
     const temp = nodeIdRef.current;
     nodeIdRef.current = id;
 
@@ -187,13 +179,6 @@ const Main = () => {
     if (temp !== nodeIdRef.current && nodeIdRef.current !== null) {
       metadataLookup.current[nodeIdRef.current].forceUpdate();
     }
-
-    console.log(
-      "After",
-      nodeStackRef.current.map((id) =>
-        metadataLookup.current[id].nodeDetails
-      )
-    );
   }
 
   function remove(id: string) {
@@ -213,8 +198,6 @@ const Main = () => {
   function add(metadata: SerializableNodeMetadata, existingId?: string) {
     const { position, size, nodeDetails } = metadata;
     const id = existingId ?? uuidv4();
-    const transform = panZoomRef.current?.getTransform();
-    const scaleCoef = 1 / (transform?.scale || 1);
     const { x, y } = position;
 
     const webview = (
@@ -356,7 +339,7 @@ const Main = () => {
           const p = panZoomRef.current;
           const relWidth = (baseRef.current?.clientWidth || 0) * 0.5;
           const relHeight = (baseRef.current?.clientHeight || 0) * 0.5;
-          p?.zoomTo(relWidth, relHeight, 0.3 / (p?.getTransform()?.scale || 1));
+          p?.zoomTo(relWidth, relHeight, 0.3 / (p?.getTransform()?.scale ?? 1));
         }
       }
 
@@ -407,7 +390,7 @@ const Main = () => {
     if (panzoomData) {
       const parsedPanzoomData = JSON.parse(panzoomData) || {};
       const { x, y, scale } = parsedPanzoomData.transform as Transform;
-      const currentScale = panZoomRef.current?.getTransform()?.scale || 1;
+      const currentScale = panZoomRef.current?.getTransform()?.scale ?? 1;
       panZoomRef.current?.zoomTo(0, 0, scale / currentScale);
       panZoomRef.current?.moveTo(x, y);
     }

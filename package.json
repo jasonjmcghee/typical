@@ -1,5 +1,4 @@
 {
-  "version": "0.1.0",
   "description": "A new way to use the web",
   "keywords": [
     "electron",
@@ -20,7 +19,6 @@
     "type": "git",
     "url": "git+https://github.com/electron-react-boilerplate/electron-react-boilerplate.git"
   },
-  "license": "MIT",
   "author": {
     "name": "Typical",
     "email": "hi@jason.today",

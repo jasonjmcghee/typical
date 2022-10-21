@@ -9,7 +9,7 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from 'path';
-import { app, BrowserWindow, BrowserView, shell, ipcMain } from 'electron';
+import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import Store from 'electron-store';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
@@ -132,7 +132,10 @@ const createWindow = async () => {
   });
 
   mainWindow.on('close', () => {
-    config.set('winBounds', mainWindow.getBounds())
+    if (!mainWindow) {
+      throw new Error('"mainWindow" is not defined');
+    }
+    config.set('winBounds', mainWindow.getBounds());
   });
 
   mainWindow.on('closed', () => {
@@ -150,7 +153,7 @@ const createWindow = async () => {
 
   // Remove this if your app does not use auto updates
   // eslint-disable-next-line
-  new AppUpdater();
+  // new AppUpdater();
 };
 
 /**
