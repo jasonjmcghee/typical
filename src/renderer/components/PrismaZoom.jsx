@@ -67,7 +67,7 @@ export default class PrismaZoom extends PureComponent {
   constructor(props) {
     super(props)
     // Reference to the main element
-    this.ref = createRef()
+    this.webviewRef = createRef()
     // Last cursor position
     this.lastCursor = null
     // Last touch position

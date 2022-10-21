@@ -121,6 +121,21 @@ const Main = () => {
 
   const [justSelected, setJustSelected] = useState(false);
 
+  const transformPoint = ({
+    x,
+    y,
+  }: {
+    x: number;
+    y: number;
+  }): { x: number; y: number } => {
+    const t = panZoomRef.current?.getTransform();
+    const coef = 1 / t.scale;
+    return {
+      x: coef * (x - t.x),
+      y: coef * (y - t.y),
+    };
+  };
+
   useEffect(() => {
     if (justSelected && nodeIdRef.current) {
       metadataLookup.current[nodeIdRef.current].centerOnNode();
@@ -142,18 +157,27 @@ const Main = () => {
   };
 
   function select(id: string | null) {
+
+    console.log(
+      "Before",
+      nodeStackRef.current.map((id) =>
+        metadataLookup.current[id].nodeDetails
+      )
+    );
     const temp = nodeIdRef.current;
     nodeIdRef.current = id;
 
     if (id != null) {
       if (nodeStackRef.current[nodeStackIndexRef.current] !== id) {
-        nodeStackIndexRef.current = nodeStackRef.current.findIndex(
+        const foundIndex = nodeStackRef.current.findIndex(
           (v) => v === id
         );
+        if (foundIndex >= 0) {
+          nodeStackRef.current.splice(foundIndex, 1);
+        }
+        nodeStackRef.current.unshift(id);
+        nodeStackIndexRef.current = 0;
       }
-      nodeStackRef.current[nodeStackIndexRef.current] = nodeStackRef.current[0];
-      nodeStackRef.current[0] = id;
-      nodeStackIndexRef.current = 0;
     }
 
     if (temp !== null) {
@@ -163,14 +187,19 @@ const Main = () => {
     if (temp !== nodeIdRef.current && nodeIdRef.current !== null) {
       metadataLookup.current[nodeIdRef.current].forceUpdate();
     }
+
+    console.log(
+      "After",
+      nodeStackRef.current.map((id) =>
+        metadataLookup.current[id].nodeDetails
+      )
+    );
   }
 
   function remove(id: string) {
     const { [id]: webview, ...rest } = nodesRef.current;
     delete metadataLookup.current[id];
-    const index = nodeStackRef.current.findIndex(
-      (v) => v === id
-    );
+    const index = nodeStackRef.current.findIndex((v) => v === id);
     nodeStackRef.current.splice(index, 1);
     nodesRef.current = rest;
     if (id === nodeIdRef.current) {
@@ -229,22 +258,24 @@ const Main = () => {
     position?: { x: number; y: number },
     size?: { width: number; height: number }
   ) {
+    const defaultSize = size ?? {
+      width: 640,
+      height: 480,
+    };
     const rect = baseRef.current?.getBoundingClientRect() ?? {
       x: 40,
       y: 40,
       width: 0,
       height: 0,
     };
+    const defaultPosition = position ?? {
+      x: (rect.width - rect.x) * 0.5,
+      y: (rect.height - rect.y) * 0.5,
+    };
     return add({
       nodeDetails,
-      position: position ?? {
-        x: (rect.width - rect.x) * 0.5,
-        y: (rect.height - rect.y) * 0.5,
-      },
-      size: size ?? {
-        width: 640,
-        height: 480,
-      },
+      position: transformPoint(defaultPosition),
+      size: defaultSize,
     });
   }
 
@@ -269,7 +300,7 @@ const Main = () => {
             'New Text Box: Cmd+T\n' +
             'Open at location: Right Click\n'
         ),
-        { x: 40, y: 40 }
+        { x: 40, y: 40 },
       );
       addDefault(NodeHelper.webview('www.google.com'), { x: 360, y: 360 });
     } else {
@@ -279,6 +310,11 @@ const Main = () => {
     }
 
     const swapNodeForward = (delta: number) => {
+      console.log(
+        nodeStackRef.current.map((id) =>
+          metadataLookup.current[id].nodeDetails
+        )
+      );
       didSwapNode.current = true;
       const numNodes = Object.keys(metadataLookup.current).length;
       nodeStackIndexRef.current =
@@ -293,8 +329,8 @@ const Main = () => {
       }
       didSwapNode.current = false;
       const id = nodeStackRef.current[nodeStackIndexRef.current];
+      nodeStackIndexRef.current = 0;
       select(id);
-      setJustSelected(true);
     };
 
     window.addEventListener('dragend', (event) => {
@@ -305,9 +341,9 @@ const Main = () => {
             target.selectionStart,
             target.selectionEnd
           );
-          addDefault(NodeHelper.text(text), {x: event.x, y: event.y});
+          addDefault(NodeHelper.text(text), { x: event.x, y: event.y });
         } else {
-          debugger;
+          console.log("Other kind of drag!")
         }
       }
     });
@@ -356,7 +392,7 @@ const Main = () => {
     ipc.on('add-text', (args) => {
       const objs = args as { text: string; x?: number; y?: number }[];
       objs.forEach(({ text, x, y }) => {
-        addDefault(NodeHelper.text(text), { x: x || 0, y: y || 0 });
+        addDefault(NodeHelper.text(text), { x: x || 0, y: y || 0 },{ width: 600, height: 300},);
       });
     });
 

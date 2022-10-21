@@ -20,6 +20,7 @@ import {
 } from '@heroicons/react/24/solid';
 
 import styles from './Node.module.scss';
+import { buildUrl } from '../util';
 
 interface SerializableNodeMetadata {
   position: { x: number; y: number };
@@ -130,11 +131,7 @@ class NodeHelper {
   }
 
   static webview(url: string): IWebviewNode {
-    let finalUrl = url;
-    if (!url.includes('://')) {
-      finalUrl = `https://${url}`;
-    }
-    return { url: finalUrl, type: 'webview' };
+    return { url: buildUrl(url), type: 'webview' };
   }
 
   static isWebview(n: any): n is IWebviewNode {
@@ -161,7 +158,6 @@ interface CompNodeProps {
   add: (nodeDetails: TNodeDetails) => void;
   remove: () => void;
   selected: undefined | boolean;
-  onChangeSelection: (selected: boolean) => void;
   ignoreInput: undefined | boolean;
   onSerialize: () => void;
 }
@@ -225,39 +221,231 @@ const GenericNode = ({
   );
 };
 
+function WebviewNavbarUrl({
+  url,
+  webviewRef,
+  onUpdateUrl,
+}: {
+  url: string;
+  webviewRef: RefObject<Electron.WebviewTag>;
+  onUpdateUrl: (url: string) => void;
+}) {
+  const [urlValue, setUrlValue] = useState<string>(url);
+  const updateUrl = (u: string) => {
+    setUrlValue(u);
+    onUpdateUrl(u);
+  };
+  useEffect(() => {
+    if (webviewRef.current !== null) {
+      webviewRef.current.addEventListener('did-navigate', async (event) => {
+        updateUrl(event.url);
+      });
+    }
+  }, []);
+
+  return (
+    <input
+      style={{
+        color: 'white',
+        background: '#33373b',
+        width: '100%',
+        maxWidth: '500px',
+        borderRadius: '6px',
+        border: '1px solid #555555',
+        textAlign: 'center',
+      }}
+      onMouseDown={(event) => {
+        event.stopPropagation();
+      }}
+      onDoubleClick={(event) => {
+        event.stopPropagation();
+      }}
+      type="text"
+      value={urlValue}
+      onChange={(event) => updateUrl(event.target.value)}
+    />
+  );
+}
+
+function WebviewNavbar({
+  url,
+  onUpdateUrl,
+  selected,
+  webviewRef,
+  remove,
+}: {
+  url: string;
+  selected: undefined | boolean;
+  onUpdateUrl: (url: string) => void;
+  webviewRef: RefObject<Electron.WebviewTag>;
+  remove: () => void;
+}) {
+  const [loaded, setLoaded] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (webviewRef.current !== null) {
+      webviewRef.current.addEventListener('dom-ready', async (event) => {
+        setLoaded(true);
+      });
+    }
+  }, []);
+
+  return (
+    <div className={`${styles.webviewNavbar} ${selected ? '' : styles.hide}`}>
+      <div
+        style={{
+          top: -48,
+          position: 'absolute',
+          fontSize: '2em',
+          cursor: 'default',
+        }}
+      >
+        {loaded ? webviewRef.current?.getTitle() : ''}
+      </div>
+      <div style={{ display: 'flex', gap: '20px' }}>
+        <button
+          type="button"
+          style={{
+            padding: 0,
+            width: '24px',
+            background: 'transparent',
+            color: loaded && webviewRef.current?.canGoBack() ? 'white' : 'grey',
+          }}
+          onClick={(event) => {
+            webviewRef.current?.stop();
+            webviewRef.current?.goBack();
+            event.preventDefault();
+          }}
+        >
+          <ArrowLeftIcon />
+        </button>
+        <button
+          type="button"
+          style={{
+            padding: 0,
+            width: '24px',
+            background: 'transparent',
+            color:
+              loaded && webviewRef.current?.canGoForward() ? 'white' : 'grey',
+          }}
+          onClick={(event) => {
+            webviewRef.current?.stop();
+            webviewRef.current?.goForward();
+            event.preventDefault();
+          }}
+        >
+          <ArrowRightIcon />
+        </button>
+        <button
+          type="button"
+          style={{
+            padding: 0,
+            width: '24px',
+            background: 'transparent',
+            color: 'white',
+          }}
+          onClick={(event) => {
+            webviewRef.current?.reload();
+            event.preventDefault();
+          }}
+        >
+          <ArrowPathIcon />
+        </button>
+      </div>
+      <form
+        style={{
+          flexGrow: 1,
+          display: 'flex',
+          justifyContent: 'center',
+          position: 'relative',
+        }}
+        onSubmit={(event) => {
+          event.preventDefault();
+          try {
+            webviewRef.current?.stop();
+            webviewRef.current?.loadURL(buildUrl(urlValue));
+          } catch (e) {
+            debugger;
+          }
+        }}
+      >
+        <WebviewNavbarUrl
+          url={url}
+          webviewRef={webviewRef}
+          onUpdateUrl={onUpdateUrl}
+        />
+        <button
+          type="submit"
+          style={{ display: 'none', position: 'absolute' }}
+        />
+      </form>
+      <div>
+        <button
+          type="button"
+          style={{
+            padding: 0,
+            width: '24px',
+            color: 'white',
+            background: 'transparent',
+          }}
+          onClick={(event) => {
+            remove();
+            event.preventDefault();
+          }}
+        >
+          <XMarkIcon />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RawWebview({
+  webviewRef,
+  style,
+  src,
+  onLoad,
+}: {
+  webviewRef: RefObject<WebviewTag>;
+  style: CSSProperties;
+  src: string;
+  onLoad: (e) => void;
+}) {
+  return (
+    <webview
+      ref={webviewRef}
+      style={style}
+      src={src}
+      webpreferences="nativeWindowOpen=true"
+      allowpopups="true"
+      onLoad={onLoad}
+    />
+  );
+}
+
 const Webview = ({
   url,
   add,
   remove,
   selected,
-  onChangeSelection,
   ignoreInput,
   onUpdateUrl,
-}: CompNodeProps & { url: string, onUpdateUrl: (url: string) => void }) => {
-  const forceUpdate = useForceUpdate();
+}: CompNodeProps & { url: string; onUpdateUrl: (url: string) => void }) => {
   const webviewRef = useRef<WebviewTag>(null);
-  const [urlValue, setUrlValue] = useState<string>(url);
   const [notFound, setNotFound] = useState<boolean>(false);
-
-  const updateUrl = (u: string) => {
-    setUrlValue(u);
-    onUpdateUrl(u);
-  };
 
   useEffect(() => {
     if (webviewRef.current !== null) {
       updateStyle(webviewRef.current);
-      webviewRef.current.addEventListener('did-finish-load', async () => {
-        forceUpdate();
-      });
+      // webviewRef.current.addEventListener('did-finish-load', async (event) => {
+      //   setNotFound(false);
+      // });
       webviewRef.current.addEventListener('new-window', async (event) => {
         add(NodeHelper.webview(event.url));
       });
-      webviewRef.current.addEventListener('did-navigate', async (event) => {
-        setNotFound(false);
-        updateUrl(event.url);
-        forceUpdate();
-      });
+      // webviewRef.current.addEventListener('did-navigate', async (event) => {
+      //   setNotFound(false);
+      // });
       webviewRef.current.addEventListener('did-fail-load', async () => {
         setNotFound(true);
       });
@@ -273,132 +461,26 @@ const Webview = ({
       '0px 9px 28px 8px rgba(0, 0, 0, 0.05)',
   };
 
+  const pointerStyles: CSSProperties = {};
+
   if (!selected || ignoreInput) {
-    style.pointerEvents = 'none';
+    pointerStyles.pointerEvents = 'none';
   }
 
   return (
     <>
-      <div className={`${styles.webviewNavbar} ${selected ? '' : styles.hide}`}>
-        <div
-          style={{
-            top: -48,
-            position: 'absolute',
-            fontSize: '2em',
-            cursor: 'default',
-          }}
-        >
-          {webviewRef.current?.getTitle()}
-        </div>
-        <div style={{ display: 'flex', gap: '20px' }}>
-          <button
-            type="button"
-            style={{
-              padding: 0,
-              width: '24px',
-              background: 'transparent',
-              color: webviewRef.current?.canGoBack() ? 'white' : 'grey',
-            }}
-            onClick={(event) => {
-              webviewRef.current?.goBack();
-              event.preventDefault();
-              forceUpdate();
-            }}
-          >
-            <ArrowLeftIcon />
-          </button>
-          <button
-            type="button"
-            style={{
-              padding: 0,
-              width: '24px',
-              background: 'transparent',
-              color: webviewRef.current?.canGoForward() ? 'white' : 'grey',
-            }}
-            onClick={(event) => {
-              webviewRef.current?.goForward();
-              event.preventDefault();
-              forceUpdate();
-            }}
-          >
-            <ArrowRightIcon />
-          </button>
-          <button
-            type="button"
-            style={{
-              padding: 0,
-              width: '24px',
-              background: 'transparent',
-              color: 'white',
-            }}
-            onClick={(event) => {
-              webviewRef.current?.reload();
-              event.preventDefault();
-              forceUpdate();
-            }}
-          >
-            <ArrowPathIcon />
-          </button>
-        </div>
-        <form
-          style={{
-            flexGrow: 1,
-            display: 'flex',
-            justifyContent: 'center',
-            position: 'relative',
-          }}
-          onSubmit={(event) => {
-            event.preventDefault();
-            webviewRef.current?.loadURL(urlValue);
-          }}
-        >
-          <input
-            style={{
-              color: 'white',
-              background: '#33373b',
-              width: '100%',
-              maxWidth: '500px',
-              borderRadius: '6px',
-              border: '1px solid #555555',
-              textAlign: 'center',
-            }}
-            onMouseDown={(event) => {
-              event.stopPropagation();
-            }}
-            onDoubleClick={(event) => {
-              event.stopPropagation();
-            }}
-            type="text"
-            value={urlValue}
-            onChange={(event) => updateUrl(event.target.value)}
-          />
-          <button
-            type="submit"
-            style={{ display: 'none', position: 'absolute' }}
-          />
-        </form>
-        <div>
-          <button
-            type="button"
-            style={{
-              padding: 0,
-              width: '24px',
-              color: 'white',
-              background: 'transparent',
-            }}
-            onClick={(event) => {
-              remove();
-              event.preventDefault();
-            }}
-          >
-            <XMarkIcon />
-          </button>
-        </div>
-      </div>
+      <WebviewNavbar
+        url={url}
+        remove={remove}
+        onUpdateUrl={onUpdateUrl}
+        selected={selected}
+        webviewRef={webviewRef}
+      />
       {notFound ? (
         <div
           style={{
             ...style,
+            ...pointerStyles,
             color: 'grey',
             display: 'flex',
             flexDirection: 'column',
@@ -408,20 +490,24 @@ const Webview = ({
             borderRadius: '6px',
           }}
         >
-          <div>
-            <SignalSlashIcon />
-            Failed to load
-          </div>
+          {notFound && (
+            <div>
+              <SignalSlashIcon />
+              Failed to load
+            </div>
+          )}
         </div>
       ) : (
-        <webview
-          ref={webviewRef}
-          style={style}
-          src={url}
-          onLoad={(e) => {
-            updateStyle(e.target as HTMLWebViewElement);
-          }}
-        />
+        <div style={{ ...style, ...pointerStyles }}>
+          <RawWebview
+            webviewRef={webviewRef}
+            style={style}
+            src={url}
+            onLoad={(e) => {
+              updateStyle(e.target as HTMLWebViewElement);
+            }}
+          />
+        </div>
       )}
     </>
   );
@@ -431,7 +517,7 @@ function CompNode({
   nodeDetails,
   add,
   selected,
-                    onSerialize,
+  onSerialize,
   ...rest
 }: CompNodeProps & {
   nodeDetails: TNodeDetails;
@@ -450,7 +536,9 @@ function CompNode({
             }}
           />
         ) : (
-          <pre className={styles.textNode}>{nodeDetails.text}</pre>
+          <pre style={{ whiteSpace: 'pre-wrap' }} className={styles.textNode}>
+            {nodeDetails.text}
+          </pre>
         )}
       </GenericNode>
     );
@@ -463,6 +551,7 @@ function CompNode({
         url={nodeDetails.url}
         selected={selected}
         {...rest}
+        onSerialize={onSerialize}
         onUpdateUrl={(url: string) => {
           nodeDetails.url = url;
           onSerialize();
@@ -613,11 +702,6 @@ function WebNode({
         axis={resizing ? 'none' : 'both'}
       >
         <Resizable
-          className={
-            selected || nodeDetails.type === 'webview'
-              ? ''
-              : styles.forceFitContent
-          }
           scale={scale}
           size={size}
           onResizeStart={() => setResizing(true)}
