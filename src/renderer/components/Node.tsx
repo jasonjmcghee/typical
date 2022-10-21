@@ -244,26 +244,48 @@ function WebviewNavbarUrl({
   }, []);
 
   return (
-    <input
+    <form
       style={{
-        color: 'white',
-        background: '#33373b',
-        width: '100%',
-        maxWidth: '500px',
-        borderRadius: '6px',
-        border: '1px solid #555555',
-        textAlign: 'center',
+        flexGrow: 1,
+        display: 'flex',
+        justifyContent: 'center',
+        position: 'relative',
       }}
-      onMouseDown={(event) => {
-        event.stopPropagation();
+      onSubmit={(event) => {
+        event.preventDefault();
+        try {
+          webviewRef.current?.stop();
+          webviewRef.current?.loadURL(buildUrl(urlValue));
+        } catch (e) {
+          debugger;
+        }
       }}
-      onDoubleClick={(event) => {
-        event.stopPropagation();
-      }}
-      type="text"
-      value={urlValue}
-      onChange={(event) => updateUrl(event.target.value)}
+    >
+      <input
+        style={{
+          color: 'white',
+          background: '#33373b',
+          width: '100%',
+          maxWidth: '500px',
+          borderRadius: '6px',
+          border: '1px solid #555555',
+          textAlign: 'center',
+        }}
+        onMouseDown={(event) => {
+          event.stopPropagation();
+        }}
+        onDoubleClick={(event) => {
+          event.stopPropagation();
+        }}
+        type="text"
+        value={urlValue}
+        onChange={(event) => updateUrl(event.target.value)}
+      />
+    <button
+      type="submit"
+      style={{ display: 'none', position: 'absolute' }}
     />
+    </form>
   );
 }
 
@@ -352,33 +374,11 @@ function WebviewNavbar({
           <ArrowPathIcon />
         </button>
       </div>
-      <form
-        style={{
-          flexGrow: 1,
-          display: 'flex',
-          justifyContent: 'center',
-          position: 'relative',
-        }}
-        onSubmit={(event) => {
-          event.preventDefault();
-          try {
-            webviewRef.current?.stop();
-            webviewRef.current?.loadURL(buildUrl(urlValue));
-          } catch (e) {
-            debugger;
-          }
-        }}
-      >
-        <WebviewNavbarUrl
-          url={url}
-          webviewRef={webviewRef}
-          onUpdateUrl={onUpdateUrl}
-        />
-        <button
-          type="submit"
-          style={{ display: 'none', position: 'absolute' }}
-        />
-      </form>
+      <WebviewNavbarUrl
+        url={url}
+        webviewRef={webviewRef}
+        onUpdateUrl={onUpdateUrl}
+      />
       <div>
         <button
           type="button"
@@ -449,12 +449,15 @@ const Webview = ({
       webviewRef.current.addEventListener('did-fail-load', async () => {
         setNotFound(true);
       });
+      webviewRef.current.addEventListener('close', async () => {
+        remove();
+      });
     }
   }, [add]);
 
   const style: CSSProperties = {
-    width: '-webkit-fill-available',
-    height: '-webkit-fill-available',
+    width: '100%',
+    height: '100%',
     boxShadow:
       '0px 3px 6px -4px rgba(0, 0, 0, 0.12), ' +
       '0px 6px 16px rgba(0, 0, 0, 0.08), ' +
@@ -593,6 +596,8 @@ function WebNode({
   const [resizing, setResizing] = useState(false);
   const [dragging, setDragging] = useState(false);
 
+  const sizeRef = useRef(size);
+
   const selected = isSelected();
 
   useEffect(() => {
@@ -673,7 +678,7 @@ function WebNode({
   return (
     <>
       <Draggable
-        disabled={panningRef.current || false}
+        disabled={panningRef.current || resizing}
         defaultClassName={panningRef.current ? '' : styles.draggable}
         scale={scale}
         position={position}
@@ -696,23 +701,33 @@ function WebNode({
           size={size}
           onResizeStart={() => setResizing(true)}
           onResizeStop={(event) => {
+            setSize(sizeRef.current);
             setResizing(false);
             event.stopPropagation();
           }}
           onResize={(event, direction, elementRef) => {
             let { x: newX, y: newY } = position;
             let { width: w, height: h } = elementRef.getBoundingClientRect();
-            const scale = panZoomRef.current?.getTransform()?.scale ?? 1;
+            let scale = panZoomRef.current?.getTransform()?.scale ?? 1;
             const scaleCoef = 1 / scale;
             w *= scaleCoef;
             h *= scaleCoef;
-            if (['topLeft', 'bottomLeft', 'left'].includes(direction)) {
-              newX -= w - size.width;
+            const deltaX = w - sizeRef.current.width;
+            const deltaY = h - sizeRef.current.height;
+            if (['topLeft', 'bottomLeft', 'left'].includes(direction) && !event.altKey) {
+              newX -= deltaX;
             }
-            if (['topLeft', 'topRight', 'top'].includes(direction)) {
-              newY -= h - size.height;
+            if (['topLeft', 'topRight', 'top'].includes(direction) && !event.altKey) {
+              newY -= deltaY;
             }
-            setSize({ width: w, height: h });
+            if (event.altKey) {
+              newX -= deltaX;
+              newY -= deltaY;
+              w += deltaX;
+              h += deltaY;
+            }
+            // setSize({ width: w, height: h });
+            sizeRef.current = { width: w, height: h };
             setPosition({ x: newX, y: newY });
             event.stopPropagation();
           }}
@@ -732,10 +747,6 @@ function WebNode({
               zIndex: selected ? -1 : 1,
             }}
             onMouseDown={(event) => {
-              if (event.altKey) {
-                event.stopPropagation();
-                centerOnNode();
-              }
               if (!selected && !event.metaKey) {
                 onSelected(true);
               }

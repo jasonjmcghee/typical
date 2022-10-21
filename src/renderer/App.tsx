@@ -281,7 +281,8 @@ const Main = () => {
             'Pan: Cmd + Drag\n' +
             'New Browser: Cmd+N\n' +
             'New Text Box: Cmd+T\n' +
-            'Open at location: Right Click\n'
+            'Open at location: Right Click\n' +
+            'Switch to Next Tab: Cmd+1\n'
         ),
         { x: 40, y: 40 },
       );
