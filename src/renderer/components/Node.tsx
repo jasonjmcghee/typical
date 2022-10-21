@@ -240,6 +240,12 @@ function WebviewNavbarUrl({
       webviewRef.current.addEventListener('did-navigate', async (event) => {
         updateUrl(event.url);
       });
+      webviewRef.current.addEventListener(
+        'did-navigate-in-page',
+        async (event) => {
+          updateUrl(event.url);
+        }
+      );
     }
   }, []);
 
@@ -281,10 +287,7 @@ function WebviewNavbarUrl({
         value={urlValue}
         onChange={(event) => updateUrl(event.target.value)}
       />
-    <button
-      type="submit"
-      style={{ display: 'none', position: 'absolute' }}
-    />
+      <button type="submit" style={{ display: 'none', position: 'absolute' }} />
     </form>
   );
 }
@@ -302,7 +305,13 @@ function WebviewNavbar({
   webviewRef: RefObject<Electron.WebviewTag>;
   remove: () => void;
 }) {
+  const forceUpdate = useForceUpdate();
   const [loaded, setLoaded] = useState<boolean>(false);
+
+  const onDidUpdateUrl = (urlValue: string) => {
+    onUpdateUrl(urlValue);
+    forceUpdate();
+  };
 
   useEffect(() => {
     if (webviewRef.current !== null) {
@@ -377,7 +386,7 @@ function WebviewNavbar({
       <WebviewNavbarUrl
         url={url}
         webviewRef={webviewRef}
-        onUpdateUrl={onUpdateUrl}
+        onUpdateUrl={onDidUpdateUrl}
       />
       <div>
         <button
@@ -402,21 +411,22 @@ function WebviewNavbar({
 
 function RawWebview({
   webviewRef,
-  style,
   src,
   onLoad,
 }: {
   webviewRef: RefObject<WebviewTag>;
-  style: CSSProperties;
   src: string;
   onLoad: (e) => void;
 }) {
   return (
     <webview
       ref={webviewRef}
-      style={style}
+      className={styles.rawWebview}
       src={src}
       webpreferences="nativeWindowOpen=true"
+      // This is correct, despite what TS says
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
       allowpopups="true"
       onLoad={onLoad}
     />
@@ -443,9 +453,6 @@ const Webview = ({
       webviewRef.current.addEventListener('new-window', async (event) => {
         add(NodeHelper.webview(event.url));
       });
-      // webviewRef.current.addEventListener('did-navigate', async (event) => {
-      //   setNotFound(false);
-      // });
       webviewRef.current.addEventListener('did-fail-load', async () => {
         setNotFound(true);
       });
@@ -504,7 +511,6 @@ const Webview = ({
         <div style={{ ...style, ...pointerStyles }}>
           <RawWebview
             webviewRef={webviewRef}
-            style={style}
             src={url}
             onLoad={(e) => {
               updateStyle(e.target as HTMLWebViewElement);
@@ -708,16 +714,22 @@ function WebNode({
           onResize={(event, direction, elementRef) => {
             let { x: newX, y: newY } = position;
             let { width: w, height: h } = elementRef.getBoundingClientRect();
-            let scale = panZoomRef.current?.getTransform()?.scale ?? 1;
+            const scale = panZoomRef.current?.getTransform()?.scale ?? 1;
             const scaleCoef = 1 / scale;
             w *= scaleCoef;
             h *= scaleCoef;
             const deltaX = w - sizeRef.current.width;
             const deltaY = h - sizeRef.current.height;
-            if (['topLeft', 'bottomLeft', 'left'].includes(direction) && !event.altKey) {
+            if (
+              ['topLeft', 'bottomLeft', 'left'].includes(direction) &&
+              !event.altKey
+            ) {
               newX -= deltaX;
             }
-            if (['topLeft', 'topRight', 'top'].includes(direction) && !event.altKey) {
+            if (
+              ['topLeft', 'topRight', 'top'].includes(direction) &&
+              !event.altKey
+            ) {
               newY -= deltaY;
             }
             if (event.altKey) {

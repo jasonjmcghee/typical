@@ -7,7 +7,8 @@ export type Channels =
   | 'add-text'
   | 'open-command-palette'
   | 'swap-node-forward'
-  | 'swap-node-release';
+  | 'swap-node-release'
+  | 'initial-load-finished';
 
 contextBridge.exposeInMainWorld('electron', {
   ipcRenderer: {

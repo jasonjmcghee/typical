@@ -279,10 +279,10 @@ const Main = () => {
             '\n' +
             'Command Palette: Cmd+K\n' +
             'Pan: Cmd + Drag\n' +
-            'New Browser: Cmd+N\n' +
-            'New Text Box: Cmd+T\n' +
+            'New Browser Frame: Cmd+N\n' +
+            'New Text Frame: Cmd+T\n' +
             'Open at location: Right Click\n' +
-            'Switch to Next Tab: Cmd+1\n'
+            'Switch to Next Frame: Cmd+1\n'
         ),
         { x: 40, y: 40 },
       );
@@ -395,6 +395,8 @@ const Main = () => {
       panZoomRef.current?.zoomTo(0, 0, scale / currentScale);
       panZoomRef.current?.moveTo(x, y);
     }
+
+    ipc.sendMessage('initial-load-finished');
   }, []);
 
   return (

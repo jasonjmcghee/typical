@@ -15,6 +15,7 @@ import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
+import * as os from 'os';
 
 class AppUpdater {
   constructor() {
@@ -71,15 +72,26 @@ const createWindow = async () => {
     return path.join(RESOURCES_PATH, ...paths);
   };
 
+  const selectAppIcon = (): string => {
+    switch (os.platform()) {
+      case 'win32':
+        return getAssetPath('icon.ico');
+      case 'darwin':
+        return getAssetPath('icon.icns');
+      default:
+        return getAssetPath('icon.png');
+    }
+  }
+
   const config = new Store();
   const { width, height } = config.get('winBounds', {});
 
   mainWindow = new BrowserWindow({
-    show: true,
+    show: false,
     width: width || 1024,
     height: height || 768,
     // vibrancy: 'light',
-    icon: getAssetPath('icon.png'),
+    icon: selectAppIcon(),
     // TODO: completely screws up dragging
     // titleBarStyle: 'hidden',
     webPreferences: {
@@ -129,6 +141,13 @@ const createWindow = async () => {
     } else {
       mainWindow.show();
     }
+  });
+
+  ipcMain.on('initial-load-finished', () => {
+    if (!mainWindow) {
+      throw new Error('"mainWindow" is not defined');
+    }
+    mainWindow.show();
   });
 
   mainWindow.on('close', () => {
