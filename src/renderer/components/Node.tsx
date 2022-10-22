@@ -171,6 +171,7 @@ interface GenericNodeProps {
 }
 
 interface CompNodeProps {
+  id: string;
   onAdd: (nodeDetails: TNodeDetails) => void;
   onRemove: () => void;
   selected: undefined | boolean;
@@ -452,16 +453,19 @@ function WebviewNavbar({
 }
 
 function RawWebview({
+  id,
   webviewRef,
   src,
   onLoad,
 }: {
+  id: string;
   webviewRef: RefObject<WebviewTag>;
   src: string;
   onLoad: (e) => void;
 }) {
   return (
     <webview
+      id={id}
       ref={webviewRef}
       className={styles.rawWebview}
       src={src}
@@ -478,6 +482,7 @@ function RawWebview({
 }
 
 const Webview = ({
+  id,
   url,
   selected,
   ignoreInput,
@@ -496,7 +501,6 @@ const Webview = ({
       //   setNotFound(false);
       // });
       webviewRef.current.addEventListener('new-window', async (event) => {
-        debugger;
         onAdd(NodeHelper.webview(event.url));
       });
       webviewRef.current.addEventListener('did-fail-load', async () => {
@@ -560,6 +564,7 @@ const Webview = ({
       )}
       <div style={{ ...style, ...pointerStyles }}>
         <RawWebview
+          id={id}
           webviewRef={webviewRef}
           src={url}
           onLoad={(e) => {
@@ -572,6 +577,7 @@ const Webview = ({
 };
 
 function CompNode({
+  id,
   onAdd,
   nodeDetails,
   selected,
@@ -605,6 +611,7 @@ function CompNode({
   if (NodeHelper.isWebview(nodeDetails)) {
     return (
       <Webview
+        id={id}
         url={nodeDetails.url}
         selected={selected}
         {...rest}
@@ -835,6 +842,7 @@ function WebNode({
           {/*   /> */}
           {/* )} */}
           <CompNode
+            id={id}
             onAdd={(details) => {
               add(details, { x: position.x + size.width, y: position.y }, size);
             }}

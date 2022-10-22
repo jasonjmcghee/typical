@@ -165,12 +165,12 @@ const createWindow = async () => {
   menuBuilder.buildMenu();
 
   mainWindow.webContents.on('did-attach-webview', (event, webContents) => {
-    const { mainFrame } = webContents;
     webContents.setWindowOpenHandler((details) => {
       if (details.disposition === 'new-window') {
         return { action: 'allow' };
       }
-      mainWindow.webContents.send('add-webview', [{ url: details.url }]);
+      webContents._events['new-window']({}, details.url);
+      // mainWindow.webContents.send('add-webview', [{ url: details.url }]);
       // shell.openExternal(details.url);
       return { action: 'deny' };
     });
