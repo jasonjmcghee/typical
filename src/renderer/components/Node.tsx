@@ -16,6 +16,7 @@ import {
   ArrowPathIcon,
   ArrowRightIcon,
   SignalSlashIcon,
+  ViewfinderCircleIcon,
   XMarkIcon,
 } from '@heroicons/react/24/solid';
 
@@ -151,6 +152,7 @@ interface GenericNodeProps {
   remove: () => void;
   selected: undefined | boolean;
   onChangeSelection: (selected: boolean) => void;
+  onUpdatePinnedState: (pinned: boolean) => void;
   ignoreInput: undefined | boolean;
 }
 
@@ -159,6 +161,8 @@ interface CompNodeProps {
   remove: () => void;
   selected: undefined | boolean;
   ignoreInput: undefined | boolean;
+  onChangeSelection: (selected: boolean) => void;
+  onUpdatePinnedState: (pinned: boolean) => void;
   onSerialize: () => void;
 }
 
@@ -166,6 +170,7 @@ const GenericNode = ({
   remove,
   selected,
   onChangeSelection,
+  onUpdatePinnedState,
   ignoreInput,
   children,
 }: GenericNodeProps & HTMLAttributes<HTMLDivElement>) => {
@@ -205,6 +210,21 @@ const GenericNode = ({
             background: 'transparent',
           }}
           onClick={(event) => {
+            onUpdatePinnedState(true);
+            event.preventDefault();
+          }}
+        >
+          <ViewfinderCircleIcon />
+        </button>
+        <button
+          type="button"
+          style={{
+            padding: 0,
+            width: '24px',
+            color: 'white',
+            background: 'transparent',
+          }}
+          onClick={(event) => {
             remove();
             event.preventDefault();
           }}
@@ -225,10 +245,12 @@ function WebviewNavbarUrl({
   url,
   webviewRef,
   onUpdateUrl,
+  setNotFound,
 }: {
   url: string;
   webviewRef: RefObject<Electron.WebviewTag>;
   onUpdateUrl: (url: string) => void;
+  setNotFound: (notFound: boolean) => void;
 }) {
   const [urlValue, setUrlValue] = useState<string>(url);
   const updateUrl = (u: string) => {
@@ -261,9 +283,12 @@ function WebviewNavbarUrl({
         event.preventDefault();
         try {
           webviewRef.current?.stop();
-          webviewRef.current?.loadURL(buildUrl(urlValue));
+          setNotFound(false);
+          webviewRef.current?.loadURL(buildUrl(urlValue)).catch((e) => {
+            console.error(e);
+          });
         } catch (e) {
-          debugger;
+          console.error(e);
         }
       }}
     >
@@ -298,11 +323,13 @@ function WebviewNavbar({
   selected,
   webviewRef,
   remove,
+  setNotFound,
 }: {
   url: string;
   selected: undefined | boolean;
   onUpdateUrl: (url: string) => void;
   webviewRef: RefObject<Electron.WebviewTag>;
+  setNotFound: (notFound: boolean) => void;
   remove: () => void;
 }) {
   const forceUpdate = useForceUpdate();
@@ -387,6 +414,7 @@ function WebviewNavbar({
         url={url}
         webviewRef={webviewRef}
         onUpdateUrl={onDidUpdateUrl}
+        setNotFound={setNotFound}
       />
       <div>
         <button
@@ -440,6 +468,7 @@ const Webview = ({
   selected,
   ignoreInput,
   onUpdateUrl,
+  onUpdatePinnedState,
 }: CompNodeProps & { url: string; onUpdateUrl: (url: string) => void }) => {
   const webviewRef = useRef<WebviewTag>(null);
   const [notFound, setNotFound] = useState<boolean>(false);
@@ -455,6 +484,9 @@ const Webview = ({
       });
       webviewRef.current.addEventListener('did-fail-load', async () => {
         setNotFound(true);
+      });
+      webviewRef.current.addEventListener('will-navigate', async () => {
+        setNotFound(false);
       });
       webviewRef.current.addEventListener('close', async () => {
         remove();
@@ -485,12 +517,15 @@ const Webview = ({
         onUpdateUrl={onUpdateUrl}
         selected={selected}
         webviewRef={webviewRef}
+        onUpdatePinnedState={onUpdatePinnedState}
+        setNotFound={setNotFound}
       />
-      {notFound ? (
+      {notFound && (
         <div
           style={{
             ...style,
             ...pointerStyles,
+            position: 'absolute',
             color: 'grey',
             display: 'flex',
             flexDirection: 'column',
@@ -500,24 +535,21 @@ const Webview = ({
             borderRadius: '6px',
           }}
         >
-          {notFound && (
-            <div>
-              <SignalSlashIcon />
-              Failed to load
-            </div>
-          )}
-        </div>
-      ) : (
-        <div style={{ ...style, ...pointerStyles }}>
-          <RawWebview
-            webviewRef={webviewRef}
-            src={url}
-            onLoad={(e) => {
-              updateStyle(e.target as HTMLWebViewElement);
-            }}
-          />
+          <div>
+            <SignalSlashIcon />
+            Failed to load
+          </div>
         </div>
       )}
+      <div style={{ ...style, ...pointerStyles }}>
+        <RawWebview
+          webviewRef={webviewRef}
+          src={url}
+          onLoad={(e) => {
+            updateStyle(e.target as HTMLWebViewElement);
+          }}
+        />
+      </div>
     </>
   );
 };
@@ -740,6 +772,7 @@ function WebNode({
             }
             // setSize({ width: w, height: h });
             sizeRef.current = { width: w, height: h };
+
             setPosition({ x: newX, y: newY });
             event.stopPropagation();
           }}
@@ -788,6 +821,7 @@ function WebNode({
             add={add}
             remove={remove}
             selected={selected}
+            onUpdatePinnedState={(pinned: boolean) => {}}
             onChangeSelection={onSelected}
             nodeDetails={nodeDetails}
             ignoreInput={dragging || resizing}

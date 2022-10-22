@@ -46,7 +46,7 @@ export default class MenuBuilder {
           label: 'New Browser',
           click: () => {
             this.mainWindow.webContents.send('add-webview', [
-              { url: 'https://google.com', x, y },
+              { url: 'https://google.com', x, y: y - 40 },
             ]);
           },
         },
@@ -54,7 +54,7 @@ export default class MenuBuilder {
           label: 'New Text',
           click: () => {
             this.mainWindow.webContents.send('add-text', [
-              { text: 'New text', x, y },
+              { text: 'New text', x, y: y - 40 },
             ]);
           },
         },
