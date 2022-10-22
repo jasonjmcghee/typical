@@ -56,15 +56,29 @@ type TNode = {
   frameRef: RefObject<HTMLDivElement | null>;
   panningRef: RefObject<boolean>;
 
-  readonly add: (details: TNodeDetails) => void;
+  readonly add: (
+    nodeDetails: TNodeDetails,
+    position?: { x: number; y: number },
+    size?: { width: number; height: number }
+  ) => void;
   readonly remove: () => void;
 };
 
-function updateStyle(webview: HTMLWebViewElement) {
-  const style = webview.shadowRoot?.querySelector('iframe')?.style;
+function updateStyle(webview: WebviewTag) {
+  const iframe = webview.shadowRoot?.querySelector('iframe');
+  const style = iframe?.style;
   if (style) {
     style.borderRadius = '0 0 6px 6px';
+    style.background = 'white';
   }
+  iframe?.addEventListener('keyup', (event) => {
+    if (event.metaKey && event.key === 'Equals') {
+      webview.setZoomLevel(webview.getZoomLevel() + webview.getZoomFactor());
+    }
+    if (event.metaKey && event.key === 'Minus') {
+      webview.setZoomLevel(webview.getZoomLevel() - webview.getZoomFactor());
+    }
+  });
 }
 
 function useDebounce(value, delay) {
@@ -149,7 +163,7 @@ class NodeHelper {
 }
 
 interface GenericNodeProps {
-  remove: () => void;
+  onRemove: () => void;
   selected: undefined | boolean;
   onChangeSelection: (selected: boolean) => void;
   onUpdatePinnedState: (pinned: boolean) => void;
@@ -157,8 +171,8 @@ interface GenericNodeProps {
 }
 
 interface CompNodeProps {
-  add: (nodeDetails: TNodeDetails) => void;
-  remove: () => void;
+  onAdd: (nodeDetails: TNodeDetails) => void;
+  onRemove: () => void;
   selected: undefined | boolean;
   ignoreInput: undefined | boolean;
   onChangeSelection: (selected: boolean) => void;
@@ -167,7 +181,7 @@ interface CompNodeProps {
 }
 
 const GenericNode = ({
-  remove,
+  onRemove,
   selected,
   onChangeSelection,
   onUpdatePinnedState,
@@ -225,7 +239,7 @@ const GenericNode = ({
             background: 'transparent',
           }}
           onClick={(event) => {
-            remove();
+            onRemove();
             event.preventDefault();
           }}
         >
@@ -322,7 +336,7 @@ function WebviewNavbar({
   onUpdateUrl,
   selected,
   webviewRef,
-  remove,
+  onRemove,
   setNotFound,
 }: {
   url: string;
@@ -330,7 +344,7 @@ function WebviewNavbar({
   onUpdateUrl: (url: string) => void;
   webviewRef: RefObject<Electron.WebviewTag>;
   setNotFound: (notFound: boolean) => void;
-  remove: () => void;
+  onRemove: () => void;
 }) {
   const forceUpdate = useForceUpdate();
   const [loaded, setLoaded] = useState<boolean>(false);
@@ -426,7 +440,7 @@ function WebviewNavbar({
             background: 'transparent',
           }}
           onClick={(event) => {
-            remove();
+            onRemove();
             event.preventDefault();
           }}
         >
@@ -451,7 +465,9 @@ function RawWebview({
       ref={webviewRef}
       className={styles.rawWebview}
       src={src}
-      webpreferences="nativeWindowOpen=true"
+      // TODO: make sure we can communicate
+      preload={}
+      // webpreferences="nativeWindowOpen=false"
       // This is correct, despite what TS says
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
@@ -463,12 +479,12 @@ function RawWebview({
 
 const Webview = ({
   url,
-  add,
-  remove,
   selected,
   ignoreInput,
   onUpdateUrl,
   onUpdatePinnedState,
+  onAdd,
+  onRemove,
 }: CompNodeProps & { url: string; onUpdateUrl: (url: string) => void }) => {
   const webviewRef = useRef<WebviewTag>(null);
   const [notFound, setNotFound] = useState<boolean>(false);
@@ -480,7 +496,8 @@ const Webview = ({
       //   setNotFound(false);
       // });
       webviewRef.current.addEventListener('new-window', async (event) => {
-        add(NodeHelper.webview(event.url));
+        debugger;
+        onAdd(NodeHelper.webview(event.url));
       });
       webviewRef.current.addEventListener('did-fail-load', async () => {
         setNotFound(true);
@@ -489,10 +506,10 @@ const Webview = ({
         setNotFound(false);
       });
       webviewRef.current.addEventListener('close', async () => {
-        remove();
+        onRemove();
       });
     }
-  }, [add]);
+  }, []);
 
   const style: CSSProperties = {
     width: '100%',
@@ -513,7 +530,7 @@ const Webview = ({
     <>
       <WebviewNavbar
         url={url}
-        remove={remove}
+        onRemove={onRemove}
         onUpdateUrl={onUpdateUrl}
         selected={selected}
         webviewRef={webviewRef}
@@ -546,7 +563,7 @@ const Webview = ({
           webviewRef={webviewRef}
           src={url}
           onLoad={(e) => {
-            updateStyle(e.target as HTMLWebViewElement);
+            updateStyle(e.target as WebviewTag);
           }}
         />
       </div>
@@ -555,8 +572,8 @@ const Webview = ({
 };
 
 function CompNode({
+  onAdd,
   nodeDetails,
-  add,
   selected,
   onSerialize,
   ...rest
@@ -588,7 +605,6 @@ function CompNode({
   if (NodeHelper.isWebview(nodeDetails)) {
     return (
       <Webview
-        add={add}
         url={nodeDetails.url}
         selected={selected}
         {...rest}
@@ -597,6 +613,7 @@ function CompNode({
           nodeDetails.url = url;
           onSerialize();
         }}
+        onAdd={onAdd}
       />
     );
   }
@@ -818,8 +835,10 @@ function WebNode({
           {/*   /> */}
           {/* )} */}
           <CompNode
-            add={add}
-            remove={remove}
+            onAdd={(details) => {
+              add(details, { x: position.x + size.width, y: position.y }, size);
+            }}
+            onRemove={remove}
             selected={selected}
             onUpdatePinnedState={(pinned: boolean) => {}}
             onChangeSelection={onSelected}

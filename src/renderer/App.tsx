@@ -22,9 +22,10 @@ import {
   SerializableNodeMetadata,
   SerializableMetadataLookup,
 } from './components/Node';
+import WebviewTag = Electron.WebviewTag;
 
 function setTitle(title: string) {
-  window.electron.ipcRenderer.sendMessage('set-title', title);
+  window.electron.setTitle(title);
 }
 
 function makeTab(title: string, selected = false) {
@@ -161,9 +162,7 @@ const Main = () => {
 
     if (id != null) {
       if (nodeStackRef.current[nodeStackIndexRef.current] !== id) {
-        const foundIndex = nodeStackRef.current.findIndex(
-          (v) => v === id
-        );
+        const foundIndex = nodeStackRef.current.findIndex((v) => v === id);
         if (foundIndex >= 0) {
           nodeStackRef.current.splice(foundIndex, 1);
         }
@@ -200,6 +199,8 @@ const Main = () => {
     const id = existingId ?? uuidv4();
     const { x, y } = position;
 
+    panningRef.current = false;
+
     const webview = (
       <WebNode
         id={id}
@@ -209,8 +210,12 @@ const Main = () => {
         startSize={size}
         panZoomRef={panZoomRef}
         frameRef={baseRef}
-        add={(details: TNodeDetails) => {
-          addDefault(details);
+        add={(
+          nodeDetails: TNodeDetails,
+          position?: { x: number; y: number },
+          size?: { width: number; height: number }
+        ) => {
+          addDefault(nodeDetails, position, size, false);
         }}
         remove={() => {
           remove(id);
@@ -234,12 +239,14 @@ const Main = () => {
     };
     setNodes(nodesRef.current);
     nodeStackRef.current.push(id);
+    setPanning(panningRef.current);
   }
 
   function addDefault(
     nodeDetails: TNodeDetails,
     position?: { x: number; y: number },
-    size?: { width: number; height: number }
+    size?: { width: number; height: number },
+    transformPosition: boolean = true
   ) {
     const defaultSize = size ?? {
       width: 640,
@@ -257,7 +264,9 @@ const Main = () => {
     };
     return add({
       nodeDetails,
-      position: transformPoint(defaultPosition),
+      position: transformPosition
+        ? transformPoint(defaultPosition)
+        : defaultPosition,
       size: defaultSize,
     });
   }
@@ -284,7 +293,7 @@ const Main = () => {
             'Open at location: Right Click\n' +
             'Switch to Next Frame: Cmd+1\n'
         ),
-        { x: 40, y: 40 },
+        { x: 40, y: 40 }
       );
       addDefault(NodeHelper.webview('www.google.com'), { x: 360, y: 360 });
     } else {
@@ -295,9 +304,7 @@ const Main = () => {
 
     const swapNodeForward = (delta: number) => {
       console.log(
-        nodeStackRef.current.map((id) =>
-          metadataLookup.current[id].nodeDetails
-        )
+        nodeStackRef.current.map((id) => metadataLookup.current[id].nodeDetails)
       );
       didSwapNode.current = true;
       const numNodes = Object.keys(metadataLookup.current).length;
@@ -327,7 +334,7 @@ const Main = () => {
           );
           addDefault(NodeHelper.text(text), { x: event.x, y: event.y });
         } else {
-          console.log("Other kind of drag!")
+          console.log('Other kind of drag!');
         }
       }
     });
@@ -365,27 +372,31 @@ const Main = () => {
       }
     });
 
-    const ipc = window.electron.ipcRenderer;
-    ipc.on('add-webview', (args) => {
-      const objs = args as { url: string; x?: number; y?: number }[];
+    const {
+      onAddWebview,
+      onAddText,
+      onOpenCommandPalette,
+      initialLoadFinished,
+    } = window.electron;
+    onAddWebview((objs) => {
       objs.forEach(({ url, x, y }) => {
-        addDefault(NodeHelper.webview(url), { x: x || 0, y: y || 0 });
+        addDefault(NodeHelper.webview(url));
       });
     });
 
-    ipc.on('add-text', (args) => {
-      const objs = args as { text: string; x?: number; y?: number }[];
+    onAddText((objs) => {
       objs.forEach(({ text, x, y }) => {
-        addDefault(NodeHelper.text(text), { x: x || 0, y: y || 0 },{ width: 600, height: 300},);
+        addDefault(
+          NodeHelper.text(text),
+          { x: x || 0, y: y || 0 },
+          { width: 600, height: 300 }
+        );
       });
     });
 
-    ipc.on('open-command-palette', () => {
+    onOpenCommandPalette(() => {
       setShowCommandPalette(true);
     });
-
-    // ipc.on('swap-node-forward', swapNodeForward);
-    // ipc.on('swap-node-release', swapNodeRelease);
 
     const panzoomData = localStorage.getItem('panzoom');
     if (panzoomData) {
@@ -396,7 +407,7 @@ const Main = () => {
       panZoomRef.current?.moveTo(x, y);
     }
 
-    ipc.sendMessage('initial-load-finished');
+    initialLoadFinished();
   }, []);
 
   return (

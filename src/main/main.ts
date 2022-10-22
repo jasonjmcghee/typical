@@ -81,7 +81,7 @@ const createWindow = async () => {
       default:
         return getAssetPath('icon.png');
     }
-  }
+  };
 
   const config = new Store();
   const { width, height } = config.get('winBounds', {});
@@ -164,10 +164,16 @@ const createWindow = async () => {
   const menuBuilder = new MenuBuilder(mainWindow);
   menuBuilder.buildMenu();
 
-  // Open urls in the user's browser
-  mainWindow.webContents.setWindowOpenHandler((edata) => {
-    shell.openExternal(edata.url);
-    return { action: 'deny' };
+  mainWindow.webContents.on('did-attach-webview', (event, webContents) => {
+    const { mainFrame } = webContents;
+    webContents.setWindowOpenHandler((details) => {
+      if (details.disposition === 'new-window') {
+        return { action: 'allow' };
+      }
+      mainWindow.webContents.send('add-webview', [{ url: details.url }]);
+      // shell.openExternal(details.url);
+      return { action: 'deny' };
+    });
   });
 
   // Remove this if your app does not use auto updates
