@@ -1,9 +1,9 @@
 import classNames from 'classnames';
 import Fuse from 'fuse.js';
 import {
+  CSSProperties,
   DetailedHTMLProps,
   HTMLAttributes,
-  ReactNode,
   useEffect,
   useRef,
   useState,
@@ -109,28 +109,93 @@ const CloseWithEscape = ({ shown, onHide, children }: CloseWithEscapeProps) => {
 
 interface ActionItem {
   item: string;
-  command: () => void;
+  command: Command;
   shortcut?: KeyPress;
 }
 
-const getCommands = (onCommand: (c: string | TNodeDetails) => void) => [
+type CommandType = 'setBackground' | 'addNode';
+
+interface Command {
+  type: CommandType;
+}
+
+interface AddNodeCommand extends Command {
+  type: 'addNode';
+  details: TNodeDetails;
+}
+
+interface SetBackground {
+  type: 'setBackground';
+  style: CSSProperties;
+}
+
+class CommandHelper {
+  static isCommand(n: any): n is Command {
+    return 'type' in n;
+  }
+
+  static addNode(details: TNodeDetails): AddNodeCommand {
+    return { type: 'addNode', details };
+  }
+
+  static isAddNode(n: any): n is AddNodeCommand {
+    return CommandHelper.isCommand(n) && n.type === 'addNode';
+  }
+
+  static setBackground(style: CSSProperties): SetBackground {
+    return { type: 'setBackground', style };
+  }
+
+  static isSetBackground(n: any): n is SetBackground {
+    return CommandHelper.isCommand(n) && n.type === 'setBackground';
+  }
+}
+
+const background = (name: string, value: string) => ({
+  item: `Set Background: ${name}`,
+  command: CommandHelper.setBackground({
+    background: `${value} no-repeat center / cover`,
+  }),
+});
+
+const commands: ActionItem[] = [
   {
     item: 'Text',
-    command: () => onCommand(NodeHelper.text('A new text node!')),
+    command: CommandHelper.addNode(NodeHelper.text('A new text node!')),
   },
   {
     item: '(Web) Google',
-    command: () => onCommand(NodeHelper.webview('https://www.google.com')),
+    command: CommandHelper.addNode(
+      NodeHelper.webview('https://www.google.com')
+    ),
     // shortcut: new KeyPress({ key: 'a', cmdCtrl: true }),
   },
   {
     item: '(Web) DuckDuckGo',
-    command: () => onCommand(NodeHelper.webview('https://duckduckgo.com')),
+    command: CommandHelper.addNode(
+      NodeHelper.webview('https://duckduckgo.com')
+    ),
   },
+  background(
+    'Coral Gradient',
+    'linear-gradient(224.03deg, #FF8575 -4%, #DD439F 93.89%)'
+  ),
+  background(
+    'Forest (Image)',
+    'url(https://images.unsplash.com/photo-1568864453925-206c927dab0a?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3270&q=80)'
+  ),
+  background(
+    'Volcano (Image)',
+    'url(https://images.unsplash.com/photo-1619450535979-6939a4690888?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3132&q=80)'
+  ),
+  background(
+    'Foggy Lake (Image)',
+    'url(https://images.unsplash.com/photo-1560996025-95b43d543770?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3132&q=80)'
+  ),
 ];
 
 interface CommandPaletteExtraProps {
-  onCommand: (cmd: string | TNodeDetails) => void;
+  onCommand: (command: Command) => void;
 }
 
 type CommandPaletteProps = DetailedHTMLProps<
@@ -142,9 +207,7 @@ type CommandPaletteProps = DetailedHTMLProps<
 const CommandPalette = ({ onCommand }: CommandPaletteProps) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [searchValue, setSearchValue] = useState('');
-  const [availableItems, setAvailableItems] = useState<ActionItem[]>(
-    getCommands(onCommand)
-  );
+  const [availableItems, setAvailableItems] = useState<ActionItem[]>(commands);
   const fuseList = useRef<Fuse<ActionItem>>(
     new Fuse(availableItems, { keys: ['item'] })
   );
@@ -193,7 +256,7 @@ const CommandPalette = ({ onCommand }: CommandPaletteProps) => {
     }
 
     if (item) {
-      item?.command();
+      onCommand(item.command);
     }
   }, 'Enter');
 
@@ -246,4 +309,10 @@ const CommandPalette = ({ onCommand }: CommandPaletteProps) => {
   );
 };
 
-export { CommandPalette, OpenOnKeyPress, CloseWithEscape };
+export {
+  CommandPalette,
+  OpenOnKeyPress,
+  CloseWithEscape,
+  CommandHelper,
+  Command,
+};

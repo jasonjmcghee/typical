@@ -3,8 +3,6 @@
  *        See https://github.com/webpack-contrib/sass-loader#imports
  */
 html {
-  background: linear-gradient(224.03deg, #FF8575 -4%, #DD439F 93.89%);
-  background-repeat: no-repeat;
   position: fixed;
   height: 100%;
   width: 100%;
@@ -107,7 +105,7 @@ body, * {
   border-right: 1px solid #474d52;
 }
 .tab.selected {
-  background-color: transparent;
+  background-color: #00000030;
   font-weight: bold;
 }
 
@@ -165,4 +163,17 @@ a:hover {
   justify-content: center;
   align-items: center;
   margin: 20px 0;
+}
+
+.background {
+  background: linear-gradient(224.03deg, #FF8575 -4%, #DD439F 93.89%) no-repeat center / cover;
+  position: fixed;
+  height: 100%;
+  width: 100%;
+}
+
+.filter {
+  position: absolute;
+  height: 100%;
+  width: 100%;
 }

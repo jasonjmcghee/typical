@@ -1,6 +1,7 @@
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import {
+  CSSProperties,
   DetailedHTMLProps,
   HTMLAttributes,
   ReactElement,
@@ -11,7 +12,12 @@ import {
 import panzoom, { PanZoom, Transform } from 'panzoom';
 import { v4 as uuidv4 } from 'uuid';
 import { HomeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/solid';
-import { CloseWithEscape, CommandPalette } from './components/CommandPalette';
+import {
+  CloseWithEscape,
+  Command,
+  CommandHelper,
+  CommandPalette,
+} from './components/CommandPalette';
 // import Canvas from "./components/Canvas";
 import {
   WebNode,
@@ -23,6 +29,11 @@ import {
   SerializableMetadataLookup,
 } from './components/Node';
 import WebviewTag = Electron.WebviewTag;
+import { Position, Size } from './preload';
+
+function makeZIndex(raw: number): number {
+  return 50 + 10 * raw;
+}
 
 function setTitle(title: string) {
   window.electron.setTitle(title);
@@ -113,21 +124,17 @@ const Main = () => {
   }>({});
   const nodeIdRef = useRef<string | null>(null);
   const baseRef = useRef<HTMLDivElement | null>(null);
+  const backgroundRef = useRef<HTMLDivElement | null>(null);
 
   const metadataLookup = useRef<MetadataLookup>({});
   const nodeStackRef = useRef<string[]>([]);
   const nodeStackIndexRef = useRef<number>(0);
+  const nodeStackIndexLookupRef = useRef<{ [id: string]: number }>({});
   const didSwapNode = useRef<boolean>(false);
 
   const [justSelected, setJustSelected] = useState(false);
 
-  const transformPoint = ({
-    x,
-    y,
-  }: {
-    x: number;
-    y: number;
-  }): { x: number; y: number } => {
+  const transformPoint = ({ x, y }: Position): Position => {
     const t = panZoomRef.current?.getTransform();
     const coef = 1 / t.scale;
     return {
@@ -152,6 +159,35 @@ const Main = () => {
     );
   };
 
+  const onSerializeBackgroundStyle = (style: CSSProperties) => {
+    localStorage.setItem('backgroundStyle', JSON.stringify({ style }));
+  };
+
+  const setBackgroundStyle = (style: CSSProperties, serialize = false) => {
+    if (backgroundRef.current !== null) {
+      Object.entries(style).forEach(([prop, value]) => {
+        backgroundRef.current?.style.setProperty(prop, value);
+      });
+    }
+    if (serialize) {
+      onSerializeBackgroundStyle(style);
+    }
+  };
+
+  const reindexNodeStack = () => {
+    nodeStackIndexLookupRef.current = Object.fromEntries(
+      nodeStackRef.current.map((id, i) => {
+        const metadata = metadataLookup.current[id];
+        if (metadata) {
+          metadata.updateZIndex(makeZIndex(nodeStackRef.current.length - i));
+        }
+        return [id, i];
+      })
+    );
+  };
+  const findStackIndex = (id: string) =>
+    nodeStackIndexLookupRef.current[id] ?? -1;
+
   const onSerializeNodes = () => {
     localStorage.setItem('nodes', JSON.stringify(metadataLookup.current));
   };
@@ -162,7 +198,7 @@ const Main = () => {
 
     if (id != null) {
       if (nodeStackRef.current[nodeStackIndexRef.current] !== id) {
-        const foundIndex = nodeStackRef.current.findIndex((v) => v === id);
+        const foundIndex = findStackIndex(id);
         if (foundIndex >= 0) {
           nodeStackRef.current.splice(foundIndex, 1);
         }
@@ -170,6 +206,8 @@ const Main = () => {
         nodeStackIndexRef.current = 0;
       }
     }
+
+    reindexNodeStack();
 
     if (temp !== null) {
       metadataLookup.current[temp].forceUpdate();
@@ -183,8 +221,9 @@ const Main = () => {
   function remove(id: string) {
     const { [id]: webview, ...rest } = nodesRef.current;
     delete metadataLookup.current[id];
-    const index = nodeStackRef.current.findIndex((v) => v === id);
+    const index = findStackIndex(id);
     nodeStackRef.current.splice(index, 1);
+    reindexNodeStack();
     nodesRef.current = rest;
     if (id === nodeIdRef.current) {
       nodeIdRef.current = null;
@@ -210,17 +249,14 @@ const Main = () => {
         startSize={size}
         panZoomRef={panZoomRef}
         frameRef={baseRef}
-        add={(
-          nodeDetails: TNodeDetails,
-          position?: { x: number; y: number },
-          size?: { width: number; height: number }
-        ) => {
+        add={(nodeDetails: TNodeDetails, position?: Position, size?: Size) => {
           addDefault(nodeDetails, position, size, false);
         }}
         remove={() => {
           remove(id);
         }}
         isSelected={() => nodeIdRef.current === id}
+        zIndex={makeZIndex(nodeStackRef.current.length)}
         // isSelected={() => true}
         onSerialize={onSerializeNodes}
         onChangeSelection={(selected: boolean) => {
@@ -239,14 +275,15 @@ const Main = () => {
     };
     setNodes(nodesRef.current);
     nodeStackRef.current.push(id);
+    reindexNodeStack();
     setPanning(panningRef.current);
   }
 
   function addDefault(
     nodeDetails: TNodeDetails,
-    position?: { x: number; y: number },
-    size?: { width: number; height: number },
-    transformPosition: boolean = true
+    position?: Position,
+    size?: Size,
+    transformPosition = true
   ) {
     const defaultSize = size ?? {
       width: 640,
@@ -262,6 +299,7 @@ const Main = () => {
       x: (rect.width - rect.x) * 0.5,
       y: (rect.height - rect.y) * 0.5,
     };
+    debugger;
     return add({
       nodeDetails,
       position: transformPosition
@@ -276,6 +314,12 @@ const Main = () => {
   };
 
   useEffect(() => {
+    let savedBackgroundStyle = localStorage.getItem('backgroundStyle');
+    if (savedBackgroundStyle) {
+      savedBackgroundStyle = JSON.parse(savedBackgroundStyle);
+      setBackgroundStyle((savedBackgroundStyle || {}) as CSSProperties);
+    }
+
     let loadedData = localStorage.getItem('nodes');
     if (loadedData) {
       loadedData = JSON.parse(loadedData);
@@ -293,7 +337,8 @@ const Main = () => {
             'Open at location: Right Click\n' +
             'Switch to Next Frame: Cmd+1\n'
         ),
-        { x: 40, y: 40 }
+        { x: 40, y: 40 },
+        undefined
       );
       addDefault(NodeHelper.webview('www.google.com'), { x: 360, y: 360 });
     } else {
@@ -303,14 +348,18 @@ const Main = () => {
     }
 
     const swapNodeForward = (delta: number) => {
-      console.log(
-        nodeStackRef.current.map((id) => metadataLookup.current[id].nodeDetails)
-      );
       didSwapNode.current = true;
       const numNodes = Object.keys(metadataLookup.current).length;
+      const prevId = nodeStackRef.current[nodeStackIndexRef.current];
+      metadataLookup.current[prevId].updateZIndex(
+        makeZIndex(nodeStackIndexRef.current)
+      );
       nodeStackIndexRef.current =
         (nodeStackIndexRef.current + delta) % numNodes;
       const id: string = nodeStackRef.current[nodeStackIndexRef.current];
+      metadataLookup.current[id].updateZIndex(
+        makeZIndex(nodeStackRef.current.length)
+      );
       metadataLookup.current[id].centerOnNode();
     };
 
@@ -325,6 +374,7 @@ const Main = () => {
     };
 
     window.addEventListener('dragend', (event) => {
+      debugger;
       if (event.target) {
         const target = event.target as HTMLTextAreaElement;
         if (target && target.selectionStart && target.selectionEnd) {
@@ -379,16 +429,16 @@ const Main = () => {
       initialLoadFinished,
     } = window.electron;
     onAddWebview((objs) => {
-      objs.forEach(({ url, x, y }) => {
-        addDefault(NodeHelper.webview(url));
+      objs.forEach(({ url, position }) => {
+        addDefault(NodeHelper.webview(url), position);
       });
     });
 
     onAddText((objs) => {
-      objs.forEach(({ text, x, y }) => {
+      objs.forEach(({ text, position }) => {
         addDefault(
           NodeHelper.text(text),
-          { x: x || 0, y: y || 0 },
+          { position },
           { width: 600, height: 300 }
         );
       });
@@ -412,6 +462,9 @@ const Main = () => {
 
   return (
     <>
+      <div ref={backgroundRef} className="background">
+        <div className="filter" />
+      </div>
       <div className="title-bar-container">
         <div className="title-bar-padding" />
         <div className="title-bar">
@@ -445,10 +498,12 @@ const Main = () => {
       >
         <CommandPalette
           onBlur={() => setShowCommandPalette(false)}
-          onCommand={(details: string | TNodeDetails) => {
+          onCommand={(command: Command) => {
             // AddWebview(w);
-            if (NodeHelper.isNode(details)) {
-              addDefault(details);
+            if (CommandHelper.isAddNode(command)) {
+              addDefault(command.details);
+            } else if (CommandHelper.isSetBackground(command)) {
+              setBackgroundStyle(command.style, true);
             }
             setShowCommandPalette(false);
           }}

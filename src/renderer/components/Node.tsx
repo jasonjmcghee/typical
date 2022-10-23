@@ -22,16 +22,18 @@ import {
 
 import styles from './Node.module.scss';
 import { buildUrl } from '../util';
+import { Position, Size } from '../preload';
 
 interface SerializableNodeMetadata {
-  position: { x: number; y: number };
-  size: { width: number; height: number };
+  position: Position;
+  size: Size;
   nodeDetails: TNodeDetails;
 }
 
 interface NodeMetadata extends SerializableNodeMetadata {
   centerOnNode: () => void;
   forceUpdate: () => void;
+  updateZIndex: (zIndex: number) => void;
 }
 
 type MetadataLookup = { [id: string]: NodeMetadata };
@@ -41,14 +43,15 @@ type TNode = {
   id: string;
   metadataLookup: MutableRefObject<MetadataLookup>;
   nodeDetails: TNodeDetails;
-  startPosition: { x: number; y: number };
-  startSize: { width: number; height: number };
+  startPosition: Position;
+  startSize: Size;
 
   // eslint-disable-next-line react/require-default-props
   hide?: boolean;
   // eslint-disable-next-line react/require-default-props
 
   isSelected: () => boolean;
+  zIndex: number;
   onChangeSelection: (selected: boolean) => void;
   onSerialize: () => void;
 
@@ -58,17 +61,17 @@ type TNode = {
 
   readonly add: (
     nodeDetails: TNodeDetails,
-    position?: { x: number; y: number },
-    size?: { width: number; height: number }
+    position?: Position,
+    size?: Size
   ) => void;
   readonly remove: () => void;
 };
 
-function updateStyle(webview: WebviewTag) {
+function updateStyle(webview: WebviewTag, selected?: boolean) {
   const iframe = webview.shadowRoot?.querySelector('iframe');
   const style = iframe?.style;
   if (style) {
-    style.borderRadius = '0 0 6px 6px';
+    style.borderRadius = selected ? '0 0 6px 6px' : '6px';
     style.background = 'white';
   }
   iframe?.addEventListener('keyup', (event) => {
@@ -81,32 +84,21 @@ function updateStyle(webview: WebviewTag) {
   });
 }
 
-function useDebounce(value, delay) {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(
-    () => {
-      // Update debounced value after delay
-      const handler = setTimeout(() => {
-        setDebouncedValue(value);
-      }, 300);
-      // Cancel the timeout if value changes (also on delay change or unmount)
-      // This is how we prevent debounced value from updating if value is changed ...
-      // .. within the delay period. Timeout gets cleared and restarted.
-      return () => {
-        clearTimeout(handler);
-      };
-    },
-    [value, delay] // Only re-call effect if value or delay changes
-  );
-  return debouncedValue;
-}
+const debounce = (func: (args: unknown[]) => void, timeout = 300) => {
+  let timer: NodeJS.Timeout;
+  return (...args: unknown[]) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      func(args);
+    }, timeout);
+  };
+};
 
-function useForceUpdate() {
-  const [, setValue] = useState(0);
-  return () => setValue((val) => val + 1);
-}
-
-const useDebouncedEffect = (effect, deps, delay) => {
+const useDebouncedEffect = (
+  effect: () => void,
+  deps: unknown[],
+  delay: number
+) => {
   useEffect(() => {
     const handler = setTimeout(() => effect(), delay);
 
@@ -114,6 +106,24 @@ const useDebouncedEffect = (effect, deps, delay) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...(deps || []), delay]);
 };
+
+function useDebounce(value: unknown, delay: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useDebouncedEffect(
+    () => {
+      setDebouncedValue(value);
+    },
+    [value],
+    300
+  );
+  return debouncedValue;
+}
+
+function useForceUpdate(delay = 0) {
+  const [, setValue] = useState(0);
+  const update = () => setValue((val) => val + 1);
+  return debounce(update, delay);
+}
 
 interface ITextNode {
   type: 'text';
@@ -261,11 +271,13 @@ function WebviewNavbarUrl({
   webviewRef,
   onUpdateUrl,
   setNotFound,
+  loaded,
 }: {
   url: string;
   webviewRef: RefObject<Electron.WebviewTag>;
   onUpdateUrl: (url: string) => void;
   setNotFound: (notFound: boolean) => void;
+  loaded: boolean;
 }) {
   const [urlValue, setUrlValue] = useState<string>(url);
   const updateUrl = (u: string) => {
@@ -307,6 +319,9 @@ function WebviewNavbarUrl({
         }
       }}
     >
+      <div className={styles.titleBar}>
+        {loaded ? webviewRef.current?.getTitle() : ''}
+      </div>
       <input
         style={{
           color: 'white',
@@ -365,16 +380,6 @@ function WebviewNavbar({
 
   return (
     <div className={`${styles.webviewNavbar} ${selected ? '' : styles.hide}`}>
-      <div
-        style={{
-          top: -48,
-          position: 'absolute',
-          fontSize: '2em',
-          cursor: 'default',
-        }}
-      >
-        {loaded ? webviewRef.current?.getTitle() : ''}
-      </div>
       <div style={{ display: 'flex', gap: '20px' }}>
         <button
           type="button"
@@ -430,6 +435,7 @@ function WebviewNavbar({
         webviewRef={webviewRef}
         onUpdateUrl={onDidUpdateUrl}
         setNotFound={setNotFound}
+        loaded={loaded}
       />
       <div>
         <button
@@ -456,12 +462,10 @@ function RawWebview({
   id,
   webviewRef,
   src,
-  onLoad,
 }: {
   id: string;
   webviewRef: RefObject<WebviewTag>;
   src: string;
-  onLoad: (e) => void;
 }) {
   return (
     <webview
@@ -476,7 +480,6 @@ function RawWebview({
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       allowpopups="true"
-      onLoad={onLoad}
     />
   );
 }
@@ -496,7 +499,6 @@ const Webview = ({
 
   useEffect(() => {
     if (webviewRef.current !== null) {
-      updateStyle(webviewRef.current);
       // webviewRef.current.addEventListener('did-finish-load', async (event) => {
       //   setNotFound(false);
       // });
@@ -514,6 +516,12 @@ const Webview = ({
       });
     }
   }, []);
+
+  useEffect(() => {
+    if (webviewRef.current !== null) {
+      updateStyle(webviewRef.current, selected);
+    }
+  }, [selected]);
 
   const style: CSSProperties = {
     width: '100%',
@@ -563,14 +571,7 @@ const Webview = ({
         </div>
       )}
       <div style={{ ...style, ...pointerStyles }}>
-        <RawWebview
-          id={id}
-          webviewRef={webviewRef}
-          src={url}
-          onLoad={(e) => {
-            updateStyle(e.target as WebviewTag);
-          }}
-        />
+        <RawWebview id={id} webviewRef={webviewRef} src={url} />
       </div>
     </>
   );
@@ -647,11 +648,13 @@ function WebNode({
   add,
   remove,
   isSelected,
+  zIndex,
   onChangeSelection,
   onSerialize,
   hide = false,
 }: TNode) {
-  const forceUpdate = useForceUpdate();
+  const forceUpdate = useForceUpdate(50);
+  const baseRef = useRef<HTMLDivElement | null>(null);
   const nodeRectDiv = useRef<HTMLDivElement | null>(null);
   const [position, setPosition] = useState(startPosition);
   const [size, setSize] = useState(startSize);
@@ -666,6 +669,9 @@ function WebNode({
     panZoomRef.current?.on('zoom', () => {
       forceUpdate();
     });
+    panZoomRef.current?.on('pan', () => {
+      forceUpdate();
+    });
   }, []);
 
   const scale = panZoomRef.current?.getTransform()?.scale ?? 1;
@@ -677,18 +683,15 @@ function WebNode({
 
   let frameStyle: CSSProperties = {
     border: `4px ${selected ? 'white' : 'transparent'} solid`,
-    position: 'absolute',
-    background: 'transparent',
-    padding: '48px 0 0 0',
-    borderRadius: '6px',
-    // position: 'relative',
     userSelect: selected ? 'auto' : 'none',
   };
 
-  if (selected) {
+  const showBackground = nodeDetails.type === 'text';
+
+  if (showBackground || selected) {
     frameStyle = {
       ...frameStyle,
-      background: '#33373b',
+      background: '#33373bfd',
     };
   }
 
@@ -722,7 +725,20 @@ function WebNode({
   }
 
   useEffect(() => {
+    if (baseRef.current !== null) {
+      baseRef.current.style.zIndex = `${zIndex}`;
+    }
+  }, [zIndex]);
+
+  function updateZIndex(newZIndex: number) {
+    if (baseRef.current !== null) {
+      baseRef.current.style.zIndex = `${newZIndex}`;
+    }
+  }
+
+  useEffect(() => {
     metadataLookup.current[id] = {
+      updateZIndex,
       centerOnNode,
       forceUpdate,
       position,
@@ -738,17 +754,19 @@ function WebNode({
   }, [dragging, resizing]);
 
   return (
-    <>
+    <div ref={baseRef} className={styles.frameStyle}>
       <Draggable
         disabled={panningRef.current || resizing}
-        defaultClassName={panningRef.current ? '' : styles.draggable}
+        defaultClassName={`${styles.framePadded} ${
+          panningRef.current ? '' : styles.draggable
+        }`}
         scale={scale}
         position={position}
-        onStart={(event) => {
-          setDragging(true);
-          if (!resizing) {
-            event.stopPropagation();
+        onStart={() => {
+          if (panningRef.current || resizing) {
+            return false;
           }
+          setDragging(true);
         }}
         onStop={(_, { x: x_, y: y_ }) => {
           if (!resizing) {
@@ -761,7 +779,12 @@ function WebNode({
         <Resizable
           scale={scale}
           size={size}
-          onResizeStart={() => setResizing(true)}
+          onResizeStart={() => {
+            if (panningRef.current) {
+              return false;
+            }
+            setResizing(true);
+          }}
           onResizeStop={(event) => {
             setSize(sizeRef.current);
             setResizing(false);
@@ -796,9 +819,7 @@ function WebNode({
             }
             // setSize({ width: w, height: h });
             sizeRef.current = { width: w, height: h };
-
             setPosition({ x: newX, y: newY });
-            event.stopPropagation();
           }}
           // defaultSize={startSize}
           style={frameStyle}
@@ -820,7 +841,7 @@ function WebNode({
                 onSelected(true);
               }
             }}
-            onMouseEnter={(event) => {
+            onMouseEnter={() => {
               forceUpdate();
             }}
           />
@@ -856,7 +877,7 @@ function WebNode({
           />
         </Resizable>
       </Draggable>
-    </>
+    </div>
   );
 }
 

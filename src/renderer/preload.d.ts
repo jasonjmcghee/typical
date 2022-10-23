@@ -1,15 +1,23 @@
 import { Channels } from 'main/preload';
 
+interface Position {
+  x: number;
+  y: number;
+}
+
+interface Size {
+  width: number;
+  height: number;
+}
+
 interface WebviewRecipe {
   url: string;
-  x?: number;
-  y?: number;
+  position?: Position;
 }
 
 interface TextRecipe {
   text: string;
-  x?: number;
-  y?: number;
+  position?: Position;
 }
 
 declare global {
@@ -24,4 +32,4 @@ declare global {
   }
 }
 
-export { WebviewRecipe, TextRecipe };
+export { WebviewRecipe, TextRecipe, Position, Size };

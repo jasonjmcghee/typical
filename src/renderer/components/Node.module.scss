@@ -1,4 +1,16 @@
 $default-font: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
+$webviewNavBarHeight: 64px;
+$webviewNavTitleSpace: 32px;
+
+.frameStyle {
+  position: absolute;
+  background: transparent;
+  border-radius: 6px;
+}
+
+.framePadded {
+  padding: $webviewNavBarHeight 0 0 0;
+}
 
 .textNode {
   color: white;
@@ -23,9 +35,11 @@ $default-font: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubun
   cursor: move;
 }
 
+
+
 .webviewNavbar {
   position: absolute;
-  top: 12px;
+  top: $webviewNavBarHeight - $webviewNavTitleSpace;
   color: white;
   display: flex;
   justify-content: space-between;
@@ -47,4 +61,16 @@ $default-font: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubun
     0 3px 6px -4px rgba(0, 0, 0, 0.12),
       0px 6px 16px rgba(0, 0, 0, 0.08),
       0px 9px 28px 8px rgba(0, 0, 0, 0.05);
+}
+
+.titleBar {
+  top: -($webviewNavBarHeight - $webviewNavTitleSpace);
+  position: absolute;
+  font-size: 1em;
+  cursor: default;
+  display: flex;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  overflow: hidden;
 }
