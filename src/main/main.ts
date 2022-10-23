@@ -94,6 +94,7 @@ const createWindow = async () => {
     icon: selectAppIcon(),
     // TODO: completely screws up dragging
     // titleBarStyle: 'hidden',
+    backgroundColor: '#33373b',
     webPreferences: {
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')

@@ -6,6 +6,7 @@ import {
   MutableRefObject,
   RefObject,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -467,20 +468,23 @@ function RawWebview({
   webviewRef: RefObject<WebviewTag>;
   src: string;
 }) {
-  return (
-    <webview
-      id={id}
-      ref={webviewRef}
-      className={styles.rawWebview}
-      src={src}
-      // TODO: make sure we can communicate
-      preload={}
-      // webpreferences="nativeWindowOpen=false"
-      // This is correct, despite what TS says
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      allowpopups="true"
-    />
+  return useMemo(
+    () => (
+      <webview
+        id={id}
+        ref={webviewRef}
+        className={styles.rawWebview}
+        src={src}
+        // TODO: make sure we can communicate
+        preload={}
+        // webpreferences="nativeWindowOpen=false"
+        // This is correct, despite what TS says
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        allowpopups="true"
+      />
+    ),
+    []
   );
 }
 

@@ -151,6 +151,11 @@ class CommandHelper {
   }
 }
 
+const browser = (name: string, url: string) => ({
+  item: `New Browser: ${name}`,
+  command: CommandHelper.addNode(NodeHelper.webview(url)),
+});
+
 const background = (name: string, value: string) => ({
   item: `Set Background: ${name}`,
   command: CommandHelper.setBackground({
@@ -163,19 +168,8 @@ const commands: ActionItem[] = [
     item: 'Text',
     command: CommandHelper.addNode(NodeHelper.text('A new text node!')),
   },
-  {
-    item: '(Web) Google',
-    command: CommandHelper.addNode(
-      NodeHelper.webview('https://www.google.com')
-    ),
-    // shortcut: new KeyPress({ key: 'a', cmdCtrl: true }),
-  },
-  {
-    item: '(Web) DuckDuckGo',
-    command: CommandHelper.addNode(
-      NodeHelper.webview('https://duckduckgo.com')
-    ),
-  },
+  browser('Google', 'https://www.google.com'),
+  browser('DuckDuckGo', 'https://duckduckgo.com'),
   background(
     'Coral Gradient',
     'linear-gradient(224.03deg, #FF8575 -4%, #DD439F 93.89%)'

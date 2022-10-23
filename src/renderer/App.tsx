@@ -205,9 +205,9 @@ const Main = () => {
         nodeStackRef.current.unshift(id);
         nodeStackIndexRef.current = 0;
       }
-    }
 
-    reindexNodeStack();
+      reindexNodeStack();
+    }
 
     if (temp !== null) {
       metadataLookup.current[temp].forceUpdate();
@@ -233,7 +233,14 @@ const Main = () => {
     return webview;
   }
 
-  function add(metadata: SerializableNodeMetadata, existingId?: string) {
+  function add(
+    metadata: SerializableNodeMetadata,
+    options: {
+      existingId?: string;
+      autoSelect?: boolean;
+    } = {}
+  ) {
+    const { existingId, autoSelect } = options;
     const { position, size, nodeDetails } = metadata;
     const id = existingId ?? uuidv4();
     const { x, y } = position;
@@ -250,7 +257,7 @@ const Main = () => {
         panZoomRef={panZoomRef}
         frameRef={baseRef}
         add={(nodeDetails: TNodeDetails, position?: Position, size?: Size) => {
-          addDefault(nodeDetails, position, size, false);
+          addDefault(nodeDetails, { position, size, transformPosition: false });
         }}
         remove={() => {
           remove(id);
@@ -274,21 +281,41 @@ const Main = () => {
       [id]: webview,
     };
     setNodes(nodesRef.current);
+    setPanning(panningRef.current);
     nodeStackRef.current.push(id);
     reindexNodeStack();
-    setPanning(panningRef.current);
+
+    if (autoSelect) {
+      setTimeout(() => select(id), 0);
+    }
   }
 
   function addDefault(
     nodeDetails: TNodeDetails,
-    position?: Position,
-    size?: Size,
-    transformPosition = true
+    options: {
+      position?: Position;
+      size?: Size;
+      transformPosition?: boolean;
+      autoSelect?: boolean;
+    } = {}
   ) {
-    const defaultSize = size ?? {
-      width: 640,
-      height: 480,
-    };
+    const { position, size, autoSelect } = options;
+    let { transformPosition } = options;
+    transformPosition = transformPosition ?? true;
+
+    const defaultSize =
+      size ?? nodeDetails.type === 'text'
+        ? {
+            width: 300,
+            height: 150,
+          }
+        : {
+            width: 640,
+            height: 480,
+          };
+    defaultSize.width *= window.devicePixelRatio;
+    defaultSize.height *= window.devicePixelRatio;
+
     const rect = baseRef.current?.getBoundingClientRect() ?? {
       x: 40,
       y: 40,
@@ -299,14 +326,16 @@ const Main = () => {
       x: (rect.width - rect.x) * 0.5,
       y: (rect.height - rect.y) * 0.5,
     };
-    debugger;
-    return add({
-      nodeDetails,
-      position: transformPosition
-        ? transformPoint(defaultPosition)
-        : defaultPosition,
-      size: defaultSize,
-    });
+    return add(
+      {
+        nodeDetails,
+        position: transformPosition
+          ? transformPoint(defaultPosition)
+          : defaultPosition,
+        size: defaultSize,
+      },
+      { autoSelect }
+    );
   }
 
   const renderWebviews = () => {
@@ -337,13 +366,14 @@ const Main = () => {
             'Open at location: Right Click\n' +
             'Switch to Next Frame: Cmd+1\n'
         ),
-        { x: 40, y: 40 },
-        undefined
+        { position: { x: 40, y: 40 } }
       );
-      addDefault(NodeHelper.webview('www.google.com'), { x: 360, y: 360 });
+      addDefault(NodeHelper.webview('www.google.com'), {
+        position: { x: 360, y: 360 },
+      });
     } else {
       Object.entries(existingNodes).forEach(([key, value]) => {
-        add(value, key);
+        add(value, { existingId: key });
       });
     }
 
@@ -374,7 +404,6 @@ const Main = () => {
     };
 
     window.addEventListener('dragend', (event) => {
-      debugger;
       if (event.target) {
         const target = event.target as HTMLTextAreaElement;
         if (target && target.selectionStart && target.selectionEnd) {
@@ -382,7 +411,9 @@ const Main = () => {
             target.selectionStart,
             target.selectionEnd
           );
-          addDefault(NodeHelper.text(text), { x: event.x, y: event.y });
+          addDefault(NodeHelper.text(text), {
+            position: { x: event.x, y: event.y },
+          });
         } else {
           console.log('Other kind of drag!');
         }
@@ -430,17 +461,19 @@ const Main = () => {
     } = window.electron;
     onAddWebview((objs) => {
       objs.forEach(({ url, position }) => {
-        addDefault(NodeHelper.webview(url), position);
+        addDefault(NodeHelper.webview(url), {
+          position,
+          autoSelect: objs.length === 1,
+        });
       });
     });
 
     onAddText((objs) => {
       objs.forEach(({ text, position }) => {
-        addDefault(
-          NodeHelper.text(text),
-          { position },
-          { width: 600, height: 300 }
-        );
+        addDefault(NodeHelper.text(text), {
+          position,
+          autoSelect: objs.length === 1,
+        });
       });
     });
 
@@ -501,7 +534,7 @@ const Main = () => {
           onCommand={(command: Command) => {
             // AddWebview(w);
             if (CommandHelper.isAddNode(command)) {
-              addDefault(command.details);
+              addDefault(command.details, { autoSelect: true });
             } else if (CommandHelper.isSetBackground(command)) {
               setBackgroundStyle(command.style, true);
             }
