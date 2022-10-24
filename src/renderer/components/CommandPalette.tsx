@@ -175,6 +175,26 @@ const commands: ActionItem[] = [
     'linear-gradient(224.03deg, #FF8575 -4%, #DD439F 93.89%)'
   ),
   background(
+    'Magic Gradient',
+    'linear-gradient(224.03deg, #FF75A7 -4%, #5E8BFF 93.89%)'
+  ),
+  background(
+    'Sunset Gradient',
+    'linear-gradient(224.03deg, #FEB47B -4%, #FF7E5F 93.89%)'
+  ),
+  background(
+    'Pyramid Pattern (Image)',
+    'url(https://images.unsplash.com/photo-1524169113253-c6ba17f68498?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3270&q=80)'
+  ),
+  background(
+    'Colored Mesh on Steel (Image)',
+    'url(https://images.unsplash.com/photo-1576502200916-3808e07386a5?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3265&q=80)'
+  ),
+  background(
+    'Round Concrete Columns (Image)',
+    'url(https://images.unsplash.com/photo-1628260905419-072bca352f25?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3260&q=80)'
+  ),
+  background(
     'Forest (Image)',
     'url(https://images.unsplash.com/photo-1568864453925-206c927dab0a?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=3270&q=80)'
   ),

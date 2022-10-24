@@ -1,17 +1,13 @@
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
-import './App.css';
-import {
-  CSSProperties,
-  DetailedHTMLProps,
-  HTMLAttributes,
-  ReactElement,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
-import panzoom, { PanZoom, Transform } from 'panzoom';
+import './App.scss';
+import { CSSProperties, useEffect, useRef, useState } from 'react';
+import { PanZoom, Transform } from 'panzoom';
 import { v4 as uuidv4 } from 'uuid';
-import { HomeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/solid';
+import {
+  HomeIcon,
+  MagnifyingGlassIcon,
+  PlusIcon,
+} from '@heroicons/react/24/solid';
 import {
   CloseWithEscape,
   Command,
@@ -21,121 +17,91 @@ import {
 // import Canvas from "./components/Canvas";
 import {
   WebNode,
-  TNode,
   TNodeDetails,
   NodeHelper,
   MetadataLookup,
   SerializableNodeMetadata,
-  SerializableMetadataLookup,
 } from './components/Node';
-import WebviewTag = Electron.WebviewTag;
 import { Position, Size } from './preload';
+import { useRefState } from './hooks/useRefState';
+import { defaultPanZoomTransform, Zoomable } from './components/Zoomable';
+import { useNodes } from './hooks/useNodes';
+import { WorkspaceLookup } from './components/types';
+import { useSerialization } from './hooks/useSerialization';
+
+const basicHelpText =
+  'Welcome!\n' +
+  '\n' +
+  'Command Palette: ⌘ K\n' +
+  'Pan: ⌘ Drag\n' +
+  'New Browser Frame: ⌘ N\n' +
+  'New Text Frame: ⌘ T\n' +
+  'Open at location: Right Click\n' +
+  'Switch to Next Frame: ⌘ 1\n';
 
 function makeZIndex(raw: number): number {
   return 50 + 10 * raw;
 }
 
-function setTitle(title: string) {
-  window.electron.setTitle(title);
-}
-
-function makeTab(title: string, selected = false) {
-  return (
-    <div
-      className={`tab${selected ? ' selected' : ''}`}
-      onClick={() => setTitle(title)}
-    >
-      {title}
-    </div>
-  );
-}
-
-interface IZoomableExtra {
-  setPanZoom: (p: PanZoom) => void;
-  onSerializePanZoom: () => void;
-}
-
-type TZoomable = DetailedHTMLProps<
-  HTMLAttributes<HTMLDivElement>,
-  HTMLDivElement
-> &
-  IZoomableExtra;
-
-const Zoomable = ({ children, setPanZoom, onSerializePanZoom }: TZoomable) => {
-  const divRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (divRef.current != null) {
-      const instance = panzoom(divRef.current, {
-        initialZoom: 0.5,
-        enableTextSelection: true,
-        filterKey: () => true,
-        beforeWheel(e) {
-          // Only allow ctrl + scroll (or pinch on macos)
-          if (e.ctrlKey) {
-            return false;
-          }
-          return true;
-        },
-        beforeMouseDown(e) {
-          if (e.metaKey) {
-            return false;
-          }
-          return true;
-        },
-        zoomDoubleClickSpeed: 1,
-      });
-
-      setPanZoom(instance);
-
-      instance.on('zoom', () => {
-        onSerializePanZoom();
-      });
-
-      instance.on('pan', () => {
-        onSerializePanZoom();
-      });
-    }
-  }, []);
-
-  return (
-    <div
-      ref={divRef}
-      style={{
-        position: 'relative',
-      }}
-      // maxZoom={0.2}
-    >
-      {children}
-    </div>
-  );
-};
-
 const Main = () => {
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const panZoomRef = useRef<PanZoom | null>(null);
-  const [panning, setPanning] = useState(false);
-  const panningRef = useRef(panning);
-  const [nodes, setNodes] = useState<{
-    [id: string]: ReactElement<TNode, typeof WebNode>;
-  }>({});
-  const nodesRef = useRef<{
-    [id: string]: ReactElement<TNode, typeof WebNode>;
-  }>({});
-  const nodeIdRef = useRef<string | null>(null);
+  const [panning, setWillPan, panningRef] = useRefState(false);
+  const [activePanning, setIsPanning] = useState(false);
+
   const baseRef = useRef<HTMLDivElement | null>(null);
   const backgroundRef = useRef<HTMLDivElement | null>(null);
 
   const metadataLookup = useRef<MetadataLookup>({});
-  const nodeStackRef = useRef<string[]>([]);
-  const nodeStackIndexRef = useRef<number>(0);
-  const nodeStackIndexLookupRef = useRef<{ [id: string]: number }>({});
-  const didSwapNode = useRef<boolean>(false);
 
-  const [justSelected, setJustSelected] = useState(false);
+  const {
+    nodeStackRef,
+    nodeStackIndexRef,
+    nodeStackIndexLookupRef,
+    didSwapNode,
+    nodeIdRef,
+    nodes,
+    setNodes,
+    nodesRef,
+    clear,
+  } = useNodes();
+
+  const {
+    saveDataRef,
+    onSaveNodes,
+    onSavePanZoom,
+    onSaveBackgroundStyle,
+    onSaveWorkspaceMetadata,
+    onSaveMetadata,
+    onSelectWorkspaceId,
+    loadWorkspace,
+  } = useSerialization({
+    metadataLookup,
+    panZoomRef,
+  });
+
+  const [selectedWorkspaceId, setWorkspaceId] = useState<string | null>(
+    saveDataRef.current.selectedWorkspaceId
+  );
+
+  const workspaceLookup = useRef<WorkspaceLookup>(
+    saveDataRef.current.workspaceLookup
+  );
+
+  const [tabs, setTabs] = useState(saveDataRef.current.tabs);
+
+  const selectWorkspace = (id: string, force = false) => {
+    if (!force && saveDataRef.current.selectedWorkspaceId === id) {
+      console.log('Workspace already selected!');
+      return;
+    }
+    saveDataRef.current.selectedWorkspaceId = id;
+    setWorkspaceId(id);
+    onSelectWorkspaceId();
+  };
 
   const transformPoint = ({ x, y }: Position): Position => {
-    const t = panZoomRef.current?.getTransform();
+    const t = panZoomRef.current?.getTransform() ?? defaultPanZoomTransform;
     const coef = 1 / t.scale;
     return {
       x: coef * (x - t.x),
@@ -143,40 +109,96 @@ const Main = () => {
     };
   };
 
-  useEffect(() => {
-    if (justSelected && nodeIdRef.current) {
-      metadataLookup.current[nodeIdRef.current].centerOnNode();
-      setJustSelected(false);
+  const WorkspaceTab = ({
+    id,
+    selected,
+  }: {
+    id: string;
+    selected: boolean;
+  }) => {
+    const workspace = workspaceLookup.current[id];
+    const [title, setTitle] = useState(workspace?.title);
+    if (workspace == null) {
+      return null;
     }
-  }, [justSelected]);
 
-  const onSerializePanZoom = () => {
-    localStorage.setItem(
-      'panzoom',
-      JSON.stringify({
-        transform: panZoomRef.current?.getTransform(),
-      })
+    if (title === null) {
+      setTitle(workspace.title);
+      window.electron.setTitle(workspace.title);
+    }
+
+    return (
+      <div className={`tab${selected ? ' selected' : ''}`}>
+        {!selected ? (
+          <button type="button" onClick={() => selectWorkspace(id)}>
+            {workspace.title}
+          </button>
+        ) : (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSaveWorkspaceMetadata({ id, title });
+            }}
+            onBlur={() => onSaveWorkspaceMetadata({ id, title })}
+          >
+            <input
+              type="text"
+              value={title}
+              onChange={(event) => {
+                setTitle(event.target.value);
+                window.electron.setTitle(event.target.value);
+              }}
+            />
+            <button
+              type="submit"
+              style={{ display: 'none', position: 'absolute' }}
+            />
+          </form>
+        )}
+      </div>
     );
   };
 
-  const onSerializeBackgroundStyle = (style: CSSProperties) => {
-    localStorage.setItem('backgroundStyle', JSON.stringify({ style }));
+  const makeDefaultWorkspace = (id: string) => ({
+    id,
+    title: 'New Workspace',
+    nodes: {},
+    backgroundStyle: {},
+    panzoom: {
+      transform: panZoomRef?.current?.getTransform() ?? defaultPanZoomTransform,
+    },
+  });
+
+  const addWorkspace = () => {
+    const id = uuidv4();
+    const workspace = makeDefaultWorkspace(id);
+    saveDataRef.current.selectedWorkspaceId = id;
+    saveDataRef.current.workspaceLookup[id] = workspace;
+    saveDataRef.current.appVersion = window.electron.version;
+    saveDataRef.current.tabs = [...saveDataRef.current.tabs, id];
+    onSaveMetadata();
+    onSaveWorkspaceMetadata({ id, title: workspace.title });
+    selectWorkspace(id, true);
+    setTabs(saveDataRef.current.tabs);
   };
 
-  const setBackgroundStyle = (style: CSSProperties, serialize = false) => {
+  // TODO: If no workspaces exist, create a workspace.
+  // The workspace should have all properties
+
+  const setBackgroundStyle = (style: CSSProperties, serialize = true) => {
     if (backgroundRef.current !== null) {
       Object.entries(style).forEach(([prop, value]) => {
         backgroundRef.current?.style.setProperty(prop, value);
       });
     }
     if (serialize) {
-      onSerializeBackgroundStyle(style);
+      onSaveBackgroundStyle(style);
     }
   };
 
   const reindexNodeStack = () => {
     nodeStackIndexLookupRef.current = Object.fromEntries(
-      nodeStackRef.current.map((id, i) => {
+      nodeStackRef.current.map((id: string, i: number) => {
         const metadata = metadataLookup.current[id];
         if (metadata) {
           metadata.updateZIndex(makeZIndex(nodeStackRef.current.length - i));
@@ -188,11 +210,7 @@ const Main = () => {
   const findStackIndex = (id: string) =>
     nodeStackIndexLookupRef.current[id] ?? -1;
 
-  const onSerializeNodes = () => {
-    localStorage.setItem('nodes', JSON.stringify(metadataLookup.current));
-  };
-
-  function select(id: string | null) {
+  function selectNode(id: string | null) {
     const temp = nodeIdRef.current;
     nodeIdRef.current = id;
 
@@ -210,11 +228,11 @@ const Main = () => {
     }
 
     if (temp !== null) {
-      metadataLookup.current[temp].forceUpdate();
+      metadataLookup.current[temp]?.forceUpdate();
     }
 
     if (temp !== nodeIdRef.current && nodeIdRef.current !== null) {
-      metadataLookup.current[nodeIdRef.current].forceUpdate();
+      metadataLookup.current[nodeIdRef.current]?.forceUpdate();
     }
   }
 
@@ -229,7 +247,7 @@ const Main = () => {
       nodeIdRef.current = null;
     }
     setNodes(nodesRef.current);
-    onSerializeNodes();
+    onSaveNodes();
     return webview;
   }
 
@@ -265,12 +283,12 @@ const Main = () => {
         isSelected={() => nodeIdRef.current === id}
         zIndex={makeZIndex(nodeStackRef.current.length)}
         // isSelected={() => true}
-        onSerialize={onSerializeNodes}
+        onSerialize={onSaveNodes}
         onChangeSelection={(selected: boolean) => {
           if (selected) {
-            select(id);
+            selectNode(id);
           } else if (nodeIdRef.current === id) {
-            select(null);
+            selectNode(null);
           }
         }}
         panningRef={panningRef}
@@ -281,12 +299,12 @@ const Main = () => {
       [id]: webview,
     };
     setNodes(nodesRef.current);
-    setPanning(panningRef.current);
+    setWillPan(panningRef.current);
     nodeStackRef.current.push(id);
     reindexNodeStack();
 
     if (autoSelect) {
-      setTimeout(() => select(id), 0);
+      setTimeout(() => selectNode(id), 0);
     }
   }
 
@@ -304,17 +322,16 @@ const Main = () => {
     transformPosition = transformPosition ?? true;
 
     const defaultSize =
-      size ?? nodeDetails.type === 'text'
+      size ??
+      (nodeDetails.type === 'text'
         ? {
-            width: 300,
-            height: 150,
+            width: 300 * window.devicePixelRatio,
+            height: 150 * window.devicePixelRatio,
           }
         : {
-            width: 640,
-            height: 480,
-          };
-    defaultSize.width *= window.devicePixelRatio;
-    defaultSize.height *= window.devicePixelRatio;
+            width: 640 * window.devicePixelRatio,
+            height: 480 * window.devicePixelRatio,
+          });
 
     const rect = baseRef.current?.getBoundingClientRect() ?? {
       x: 40,
@@ -338,36 +355,16 @@ const Main = () => {
     );
   }
 
-  const renderWebviews = () => {
-    return Object.values(nodes);
-  };
+  function initializeWorkspace(id: string) {
+    const workspace = workspaceLookup.current[id];
+    setBackgroundStyle(workspace.backgroundStyle, true);
 
-  useEffect(() => {
-    let savedBackgroundStyle = localStorage.getItem('backgroundStyle');
-    if (savedBackgroundStyle) {
-      savedBackgroundStyle = JSON.parse(savedBackgroundStyle);
-      setBackgroundStyle((savedBackgroundStyle || {}) as CSSProperties);
-    }
-
-    let loadedData = localStorage.getItem('nodes');
-    if (loadedData) {
-      loadedData = JSON.parse(loadedData);
-    }
-    const existingNodes = (loadedData || {}) as SerializableMetadataLookup;
+    const existingNodes = workspace.nodes;
     if (Object.keys(existingNodes).length === 0) {
-      addDefault(
-        NodeHelper.text(
-          'Welcome!\n' +
-            '\n' +
-            'Command Palette: Cmd+K\n' +
-            'Pan: Cmd + Drag\n' +
-            'New Browser Frame: Cmd+N\n' +
-            'New Text Frame: Cmd+T\n' +
-            'Open at location: Right Click\n' +
-            'Switch to Next Frame: Cmd+1\n'
-        ),
-        { position: { x: 40, y: 40 } }
-      );
+      addDefault(NodeHelper.text(basicHelpText), {
+        position: { x: 40, y: 40 },
+        size: { width: 640, height: 480 },
+      });
       addDefault(NodeHelper.webview('www.google.com'), {
         position: { x: 360, y: 360 },
       });
@@ -377,6 +374,34 @@ const Main = () => {
       });
     }
 
+    const { x, y, scale } = workspace.panzoom.transform as Transform;
+    const currentScale = panZoomRef.current?.getTransform()?.scale ?? 1;
+    panZoomRef.current?.zoomTo(0, 0, scale / currentScale);
+    panZoomRef.current?.moveTo(x, y);
+
+    window.electron.setTitle(workspace.title);
+  }
+
+  useEffect(() => {
+    if (tabs.length === 0) {
+      addWorkspace();
+      return;
+    }
+    if (selectedWorkspaceId === null) {
+      setWorkspaceId(saveDataRef.current.selectedWorkspaceId ?? tabs[0]);
+      return;
+    }
+    if (Object.keys(nodes).length) {
+      clear();
+    }
+    setTimeout(() => {
+      saveDataRef.current.workspaceLookup[selectedWorkspaceId] =
+        loadWorkspace(selectedWorkspaceId);
+      initializeWorkspace(selectedWorkspaceId);
+    }, 0);
+  }, [selectedWorkspaceId]);
+
+  useEffect(() => {
     const swapNodeForward = (delta: number) => {
       didSwapNode.current = true;
       const numNodes = Object.keys(metadataLookup.current).length;
@@ -400,7 +425,7 @@ const Main = () => {
       didSwapNode.current = false;
       const id = nodeStackRef.current[nodeStackIndexRef.current];
       nodeStackIndexRef.current = 0;
-      select(id);
+      selectNode(id);
     };
 
     window.addEventListener('dragend', (event) => {
@@ -433,12 +458,12 @@ const Main = () => {
       }
 
       if (event.key === 'Escape') {
-        select(null);
+        selectNode(null);
       }
 
       if (event.key === 'Meta') {
-        panningRef.current = true;
-        setPanning(panningRef.current);
+        setWillPan(true);
+        setIsPanning(false);
       }
     });
 
@@ -448,9 +473,18 @@ const Main = () => {
       }
 
       if (event.key === 'Meta') {
-        panningRef.current = false;
-        setPanning(panningRef.current);
+        setWillPan(false);
       }
+    });
+
+    window.addEventListener('mousedown', () => {
+      if (panningRef.current) {
+        setIsPanning(true);
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      setIsPanning(false);
     });
 
     const {
@@ -458,7 +492,10 @@ const Main = () => {
       onAddText,
       onOpenCommandPalette,
       initialLoadFinished,
+      onFocusApp,
+      onSetPreloadScript,
     } = window.electron;
+
     onAddWebview((objs) => {
       objs.forEach(({ url, position }) => {
         addDefault(NodeHelper.webview(url), {
@@ -481,15 +518,13 @@ const Main = () => {
       setShowCommandPalette(true);
     });
 
-    const panzoomData = localStorage.getItem('panzoom');
-    if (panzoomData) {
-      const parsedPanzoomData = JSON.parse(panzoomData) || {};
-      const { x, y, scale } = parsedPanzoomData.transform as Transform;
-      const currentScale = panZoomRef.current?.getTransform()?.scale ?? 1;
-      panZoomRef.current?.zoomTo(0, 0, scale / currentScale);
-      panZoomRef.current?.moveTo(x, y);
-    }
+    onFocusApp(() => {
+      setWillPan(false);
+    });
 
+    onSetPreloadScript((src: string) => {
+      window.preloadScript = `file://${src}`;
+    });
     initialLoadFinished();
   }, []);
 
@@ -505,10 +540,20 @@ const Main = () => {
             <HomeIcon style={{ height: 16 }} />
           </div>
           <div className="tabs">
-            {makeTab('First workspace', true)}
-            {makeTab('Second workspace')}
-            {makeTab('Third workspace')}
-            <div className="tab">+</div>
+            {tabs.map((id: string) => (
+              <WorkspaceTab
+                key={`workspace-${id}`}
+                id={id}
+                selected={id === selectedWorkspaceId}
+              />
+            ))}
+            <button
+              className="tab"
+              type="button"
+              onClick={() => addWorkspace()}
+            >
+              <PlusIcon style={{ height: 16 }} />
+            </button>
           </div>
         </div>
         <div className="title-bar-rest" />
@@ -543,6 +588,11 @@ const Main = () => {
         />
       </CloseWithEscape>
       {/* <Canvas /> */}
+      {panning && (
+        <style>{`*{cursor: ${
+          activePanning ? 'grabbing' : 'grab'
+        }!important}`}</style>
+      )}
       <div
         ref={baseRef}
         className="base-canvas"
@@ -551,16 +601,15 @@ const Main = () => {
           height: '100%',
           position: 'relative',
           overflow: 'hidden',
-          cursor: panning ? 'grab' : 'auto',
         }}
         onMouseDown={(event) => {
           // TODO: selecting background doesn't always work
           if (
             !event.metaKey &&
             !event.ctrlKey &&
-            event.target.className === 'base-canvas'
+            (event.target as HTMLElement).className === 'base-canvas'
           ) {
-            select(null);
+            selectNode(null);
           }
         }}
       >
@@ -568,10 +617,10 @@ const Main = () => {
           setPanZoom={(p) => {
             panZoomRef.current = p;
           }}
-          onSerializePanZoom={onSerializePanZoom}
+          onSerializePanZoom={onSavePanZoom}
           // maxZoom={0.2}
         >
-          <div className="nodes">{renderWebviews()}</div>
+          <div className="nodes">{Object.values(nodes)}</div>
         </Zoomable>
       </div>
     </>

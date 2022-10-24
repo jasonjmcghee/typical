@@ -1,15 +1,29 @@
 $default-font: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
 $webviewNavBarHeight: 64px;
 $webviewNavTitleSpace: 32px;
+$frameBorderRadius: 12px;
 
 .frameStyle {
   position: absolute;
   background: transparent;
-  border-radius: 6px;
+  border-radius: $frameBorderRadius;
+  pointer-events: none;
+  user-select: none;
+}
+
+.webFrame {
+  border-radius: $frameBorderRadius;
+  background: white;
+
+  &Selected {
+    border-radius: 0 0 $frameBorderRadius $frameBorderRadius;
+  }
 }
 
 .framePadded {
+  user-select: none;
   padding: $webviewNavBarHeight 0 0 0;
+  pointer-events: all;
 }
 
 .textNode {
@@ -17,7 +31,7 @@ $webviewNavTitleSpace: 32px;
   background: transparent;
   width: -webkit-fill-available;
   height: -webkit-fill-available;
-  border-radius: 6px;
+  border-radius: $frameBorderRadius;
   //border: 1px solid #555555;
   border: none;
 
@@ -67,7 +81,7 @@ $webviewNavTitleSpace: 32px;
   top: -($webviewNavBarHeight - $webviewNavTitleSpace);
   position: absolute;
   font-size: 1em;
-  cursor: default;
+  cursor: auto;
   display: flex;
   white-space: nowrap;
   text-overflow: ellipsis;

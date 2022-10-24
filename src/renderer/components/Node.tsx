@@ -71,8 +71,11 @@ type TNode = {
 function updateStyle(webview: WebviewTag, selected?: boolean) {
   const iframe = webview.shadowRoot?.querySelector('iframe');
   const style = iframe?.style;
+  const borderRadius = '12px';
   if (style) {
-    style.borderRadius = selected ? '0 0 6px 6px' : '6px';
+    style.borderRadius = selected
+      ? `0 0 ${borderRadius} ${borderRadius}`
+      : borderRadius;
     style.background = 'white';
   }
   iframe?.addEventListener('keyup', (event) => {
@@ -459,7 +462,7 @@ function WebviewNavbar({
   );
 }
 
-function RawWebview({
+const RawWebview = ({
   id,
   webviewRef,
   src,
@@ -467,8 +470,8 @@ function RawWebview({
   id: string;
   webviewRef: RefObject<WebviewTag>;
   src: string;
-}) {
-  return useMemo(
+}) =>
+  useMemo(
     () => (
       <webview
         id={id}
@@ -476,7 +479,7 @@ function RawWebview({
         className={styles.rawWebview}
         src={src}
         // TODO: make sure we can communicate
-        preload={}
+        preload={window.preloadScript}
         // webpreferences="nativeWindowOpen=false"
         // This is correct, despite what TS says
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -486,7 +489,6 @@ function RawWebview({
     ),
     []
   );
-}
 
 const Webview = ({
   id,
@@ -605,7 +607,10 @@ function CompNode({
             }}
           />
         ) : (
-          <pre style={{ whiteSpace: 'pre-wrap' }} className={styles.textNode}>
+          <pre
+            style={{ whiteSpace: 'pre-wrap', overflow: 'hidden' }}
+            className={styles.textNode}
+          >
             {nodeDetails.text}
           </pre>
         )}
@@ -749,18 +754,17 @@ function WebNode({
       size,
       nodeDetails,
     };
+    onSerialize();
   }, [position, size]);
 
   useEffect(() => {
-    if (!dragging && !resizing) {
-      onSerialize();
-    }
-  }, [dragging, resizing]);
+    baseRef.current?.addEventListener('keydown', () => {});
+  }, []);
 
   return (
     <div ref={baseRef} className={styles.frameStyle}>
       <Draggable
-        disabled={panningRef.current || resizing}
+        disabled={resizing}
         defaultClassName={`${styles.framePadded} ${
           panningRef.current ? '' : styles.draggable
         }`}

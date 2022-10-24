@@ -1,5 +1,3 @@
-import { Channels } from 'main/preload';
-
 interface Position {
   x: number;
   y: number;
@@ -28,7 +26,11 @@ declare global {
       onAddText: (func: (objs: TextRecipe[]) => void) => void;
       initialLoadFinished: () => void;
       onOpenCommandPalette: (func: () => void) => void;
+      onFocusApp: (func: () => void) => void;
+      onSetPreloadScript: (func: (src: string) => void) => void;
+      version: string;
     };
+    preloadScript: string;
   }
 }
 

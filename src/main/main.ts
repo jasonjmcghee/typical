@@ -14,8 +14,9 @@ import Store from 'electron-store';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
-import { resolveHtmlPath } from './util';
+import { resolveHtmlPath, webviewPreloadScript } from './util';
 import * as os from 'os';
+import { web } from 'webpack';
 
 class AppUpdater {
   constructor() {
@@ -85,6 +86,9 @@ const createWindow = async () => {
 
   const config = new Store();
   const { width, height } = config.get('winBounds', {});
+  const preloadScript = app.isPackaged
+    ? path.join(__dirname, 'preload.js')
+    : path.join(__dirname, '../../.erb/dll/preload.js');
 
   mainWindow = new BrowserWindow({
     show: false,
@@ -96,42 +100,14 @@ const createWindow = async () => {
     // titleBarStyle: 'hidden',
     backgroundColor: '#33373b',
     webPreferences: {
-      preload: app.isPackaged
-        ? path.join(__dirname, 'preload.js')
-        : path.join(__dirname, '../../.erb/dll/preload.js'),
+      preload: preloadScript,
       webviewTag: true,
       partition: 'persist:mainSession',
+      plugins: true,
     },
   });
 
   mainWindow.webContents.loadURL(resolveHtmlPath('index.html'));
-
-  // const view = new BrowserView({
-  //   webPreferences: {
-  //     preload: app.isPackaged
-  //       ? path.join(__dirname, 'preload.js')
-  //       : path.join(__dirname, '../../.erb/dll/preload.js'),
-  //     webviewTag: true,
-  //   },
-  // });
-  // mainWindow.setBrowserView(view);
-  // let {width, height} = mainWindow.getBounds();
-  // view.setBounds({x: 0, y: 0, width, height});
-  // view.setAutoResize({
-  //   width: true, height: true, horizontal: true, vertical: true
-  // });
-  // view.webContents.loadURL(resolveHtmlPath('index.html'));
-  // view.webContents.setVisualZoomLevelLimits(0.25, 2.0);
-
-  // mainWindow.webContents.on('dom-ready', () => {
-  //   if (!mainWindow) {
-  //     throw new Error('"mainWindow" is not defined');
-  //   }
-  //   mainWindow.webContents.send('add-webview', [
-  //     { url: 'https://electronjs.org' },
-  //     { url: 'https://google.com' },
-  //   ]);
-  // });
 
   mainWindow.on('ready-to-show', () => {
     if (!mainWindow) {
@@ -142,6 +118,9 @@ const createWindow = async () => {
     } else {
       mainWindow.show();
     }
+
+    // TODO: Figure out preloading webviews...
+    mainWindow.webContents.send('webview-preload-script', webviewPreloadScript);
   });
 
   ipcMain.on('initial-load-finished', () => {
@@ -192,6 +171,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+app.on('browser-window-focus', () => {
+  mainWindow?.webContents.send('focus');
 });
 
 app

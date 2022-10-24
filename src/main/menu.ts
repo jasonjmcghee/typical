@@ -170,6 +170,18 @@ export default class MenuBuilder {
             this.mainWindow.webContents.toggleDevTools();
           },
         },
+        {
+          role: 'zoomout',
+          accelerator: 'CommandOrControl+-',
+          visible: true,
+          enabled: true,
+        },
+        {
+          role: 'zoomin',
+          accelerator: 'CommandOrControl+=',
+          visible: true,
+          enabled: true,
+        },
       ],
     };
     const subMenuViewProd: MenuItemConstructorOptions = {
