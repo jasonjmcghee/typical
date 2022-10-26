@@ -30,10 +30,12 @@ interface SerializableNodeMetadata {
   position: Position;
   size: Size;
   nodeDetails: TNodeDetails;
+  zoomLevel: number;
 }
 
 interface NodeMetadata extends SerializableNodeMetadata {
   centerOnNode: () => void;
+  changeZoom: (delta: number) => void;
   forceUpdate: () => void;
   updateZIndex: (zIndex: number) => void;
   setHiddenState: (hidden: boolean) => void;
@@ -48,6 +50,7 @@ type TNode = {
   nodeDetails: TNodeDetails;
   startPosition: Position;
   startSize: Size;
+  startZoomLevel: number;
 
   isSelected: () => boolean;
   zIndex: number;
@@ -86,7 +89,7 @@ function updateStyle(webview: WebviewTag, selected?: boolean) {
   });
 }
 
-const debounce = (func: (args: unknown[]) => void, timeout = 300) => {
+const debounce = (func: (...args: unknown[]) => void, timeout = 300) => {
   let timer: NodeJS.Timeout;
   return (...args: unknown[]) => {
     clearTimeout(timer);
@@ -297,7 +300,7 @@ function WebviewNavbarUrl({
       webviewRef.current.addEventListener(
         'did-navigate-in-page',
         async (event) => {
-          updateUrl(event.url);
+          setUrlValue(event.url);
         }
       );
     }
@@ -510,6 +513,7 @@ const RawWebview = ({
 const Webview = ({
   id,
   metadata,
+  webviewRef,
   url,
   scrollTop,
   selected,
@@ -523,8 +527,8 @@ const Webview = ({
   scrollTop: number;
   onUpdateUrl: (url: string) => void;
   metadata: NodeMetadata;
+  webviewRef: MutableRefObject<WebviewTag>;
 }) => {
-  const webviewRef = useRef<WebviewTag>(null);
   const [notFound, setNotFound, notFoundRef] = useRefState<boolean>(false);
 
   useEffect(() => {
@@ -619,6 +623,7 @@ const Webview = ({
 
 function CompNode({
   id,
+  webviewRef,
   metadata,
   onAdd,
   nodeDetails,
@@ -626,6 +631,7 @@ function CompNode({
   onSerialize,
   ...rest
 }: CompNodeProps & {
+  webviewRef: MutableRefObject<WebviewTag>;
   nodeDetails: TNodeDetails;
   metadata: NodeMetadata;
 }) {
@@ -658,6 +664,7 @@ function CompNode({
     return (
       <Webview
         id={id}
+        webviewRef={webviewRef}
         metadata={metadata}
         url={nodeDetails.url}
         scrollTop={nodeDetails.scrollTop}
@@ -689,6 +696,7 @@ function WebNode({
   nodeDetails,
   startPosition,
   startSize,
+  startZoomLevel,
   panZoomRef,
   frameRef,
   panningRef,
@@ -699,6 +707,7 @@ function WebNode({
   onChangeSelection,
   onSerialize,
 }: TNode) {
+  const webviewRef = useRef<WebviewTag>(null);
   const forceUpdate = useForceUpdate(50);
   const baseRef = useRef<HTMLDivElement | null>(null);
   const nodeRectDiv = useRef<HTMLDivElement | null>(null);
@@ -706,6 +715,8 @@ function WebNode({
   const [size, setSize] = useState(startSize);
   const [resizing, setResizing] = useState(false);
   const [dragging, setDragging] = useState(false);
+
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
 
   const sizeRef = useRef(size);
 
@@ -790,6 +801,14 @@ function WebNode({
     }
   }
 
+  function changeZoom(delta: number) {
+    if (webviewRef.current === null) {
+      return;
+    }
+    webviewRef.current.setZoomLevel(delta);
+    setZoomLevel(delta);
+  }
+
   useEffect(() => {
     if (baseRef.current?.style?.display === 'none') {
       return;
@@ -798,6 +817,8 @@ function WebNode({
       updateZIndex,
       centerOnNode,
       setHiddenState,
+      changeZoom,
+      zoomLevel,
       forceUpdate,
       position,
       size,
@@ -921,6 +942,7 @@ function WebNode({
           {/* )} */}
           <CompNode
             id={id}
+            webviewRef={webviewRef}
             metadata={metadataLookup.current[id]}
             onAdd={(details) => {
               add(details, { x: position.x + size.width, y: position.y }, size);

@@ -175,16 +175,18 @@ export default class MenuBuilder {
           },
         },
         {
-          role: 'zoomout',
+          label: 'Zoom Out',
           accelerator: 'CommandOrControl+-',
-          visible: true,
-          enabled: true,
+          click: () => {
+            this.mainWindow.webContents.send('zoom-out');
+          },
         },
         {
-          role: 'zoomin',
+          label: 'Zoom In',
           accelerator: 'CommandOrControl+=',
-          visible: true,
-          enabled: true,
+          click: () => {
+            this.mainWindow.webContents.send('zoom-in');
+          },
         },
       ],
     };

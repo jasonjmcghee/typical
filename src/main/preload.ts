@@ -4,6 +4,8 @@ import { TextRecipe, WebviewRecipe } from '../renderer/preload';
 export type Channels =
   | 'ipc-example'
   | 'add-webview'
+  | 'zoom-in'
+  | 'zoom-out'
   | 'set-title'
   | 'add-text'
   | 'open-command-palette'
@@ -37,6 +39,12 @@ contextBridge.exposeInMainWorld('electron', {
   },
   onFocusApp: (func: () => void) => {
     on('focus', func);
+  },
+  onZoomIn: (func: () => void) => {
+    on('zoom-in', func);
+  },
+  onZoomOut: (func: () => void) => {
+    on('zoom-out', func);
   },
   setTitle: (title: string) => {
     ipcRenderer.send('set-title', title);

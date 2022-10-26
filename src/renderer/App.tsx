@@ -305,6 +305,7 @@ const Main = () => {
   ) {
     const { existingId, autoSelect } = options;
     const { position, size, nodeDetails } = metadata;
+    const zoomLevel = metadata.zoomLevel ?? 1;
     const id = existingId ?? uuidv4();
     const { x, y } = position;
 
@@ -317,6 +318,7 @@ const Main = () => {
         nodeDetails={nodeDetails}
         startPosition={{ x, y }}
         startSize={size}
+        startZoomLevel={zoomLevel}
         panZoomRef={panZoomRef}
         frameRef={baseRef}
         add={(nodeDetails: TNodeDetails, position?: Position, size?: Size) => {
@@ -542,6 +544,8 @@ const Main = () => {
       onOpenCommandPalette,
       initialLoadFinished,
       onFocusApp,
+      onZoomIn,
+      onZoomOut,
       onSetPreloadScript,
     } = window.electron;
 
@@ -569,6 +573,24 @@ const Main = () => {
 
     onFocusApp(() => {
       setWillPan(false);
+    });
+
+    onZoomIn(() => {
+      const zoomLevels = Object.values(metadataLookup.current).map(
+        (v) => v.zoomLevel
+      );
+      Object.values(metadataLookup.current).forEach((v, i) => {
+        v.changeZoom(zoomLevels[i] * 1.5);
+      });
+    });
+
+    onZoomOut(() => {
+      const zoomLevels = Object.values(metadataLookup.current).map(
+        (v) => v.zoomLevel
+      );
+      Object.values(metadataLookup.current).forEach((v, i) => {
+        v.changeZoom(zoomLevels[i] * 1.5 ** -1);
+      });
     });
 
     onSetPreloadScript((src: string) => {
