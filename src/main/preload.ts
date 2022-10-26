@@ -6,6 +6,8 @@ export type Channels =
   | 'add-webview'
   | 'zoom-in'
   | 'zoom-out'
+  | 'zoom-in-all'
+  | 'zoom-out-all'
   | 'set-title'
   | 'add-text'
   | 'open-command-palette'
@@ -45,6 +47,12 @@ contextBridge.exposeInMainWorld('electron', {
   },
   onZoomOut: (func: () => void) => {
     on('zoom-out', func);
+  },
+  onZoomInAll: (func: () => void) => {
+    on('zoom-in-all', func);
+  },
+  onZoomOutAll: (func: () => void) => {
+    on('zoom-out-all', func);
   },
   setTitle: (title: string) => {
     ipcRenderer.send('set-title', title);

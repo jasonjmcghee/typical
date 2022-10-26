@@ -513,7 +513,7 @@ const RawWebview = ({
 const Webview = ({
   id,
   metadata,
-  webviewRef,
+  zoomLevel,
   url,
   scrollTop,
   selected,
@@ -527,15 +527,20 @@ const Webview = ({
   scrollTop: number;
   onUpdateUrl: (url: string) => void;
   metadata: NodeMetadata;
-  webviewRef: MutableRefObject<WebviewTag>;
+  zoomLevel: number;
 }) => {
+  const webviewRef = useRef<WebviewTag>(null);
   const [notFound, setNotFound, notFoundRef] = useRefState<boolean>(false);
+  const [domReady, setDomReady] = useState<boolean>(false);
 
   useEffect(() => {
     if (webviewRef.current !== null) {
       // webviewRef.current.addEventListener('did-finish-load', async (event) => {
       //   setNotFound(false);
       // });
+      webviewRef.current.addEventListener('dom-ready', async (event) => {
+        setDomReady(true);
+      });
       webviewRef.current.addEventListener('new-window', async (event) => {
         onAdd(NodeHelper.webview(event.url));
       });
@@ -557,6 +562,12 @@ const Webview = ({
       });
     }
   }, []);
+
+  useEffect(() => {
+    if (webviewRef.current !== null && domReady) {
+      webviewRef.current.setZoomLevel(zoomLevel);
+    }
+  }, [zoomLevel, domReady]);
 
   useEffect(() => {
     if (webviewRef.current !== null) {
@@ -623,7 +634,7 @@ const Webview = ({
 
 function CompNode({
   id,
-  webviewRef,
+  zoomLevel,
   metadata,
   onAdd,
   nodeDetails,
@@ -631,18 +642,35 @@ function CompNode({
   onSerialize,
   ...rest
 }: CompNodeProps & {
-  webviewRef: MutableRefObject<WebviewTag>;
+  zoomLevel: number;
   nodeDetails: TNodeDetails;
   metadata: NodeMetadata;
 }) {
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+  const preRef = useRef<HTMLPreElement>(null);
+
   if (NodeHelper.isText(nodeDetails)) {
+    const zoomAmount = 2.5 * zoomLevel ** 0.25;
+    let fontSize = `${zoomAmount * 1.7}em`;
+    if (textAreaRef.current !== null) {
+      fontSize = `${
+        (textAreaRef.current.getBoundingClientRect().width * zoomAmount) / 10
+      }px`;
+    }
+    if (preRef.current !== null) {
+      fontSize = `${
+        (preRef.current.getBoundingClientRect().width * zoomAmount) / 10
+      }px`;
+    }
     return (
       <GenericNode selected={selected} {...rest}>
         {selected ? (
           <textarea
+            ref={textAreaRef}
             onMouseDown={(event) => event.stopPropagation()}
             className={styles.textNode}
             defaultValue={nodeDetails.text}
+            style={{ fontSize }}
             onChange={(event) => {
               nodeDetails.text = event.target.value;
               onSerialize();
@@ -650,7 +678,12 @@ function CompNode({
           />
         ) : (
           <pre
-            style={{ whiteSpace: 'pre-wrap', overflow: 'hidden' }}
+            ref={preRef}
+            style={{
+              whiteSpace: 'pre-wrap',
+              overflow: 'hidden',
+              fontSize,
+            }}
             className={styles.textNode}
           >
             {nodeDetails.text}
@@ -664,7 +697,7 @@ function CompNode({
     return (
       <Webview
         id={id}
-        webviewRef={webviewRef}
+        zoomLevel={zoomLevel}
         metadata={metadata}
         url={nodeDetails.url}
         scrollTop={nodeDetails.scrollTop}
@@ -707,7 +740,6 @@ function WebNode({
   onChangeSelection,
   onSerialize,
 }: TNode) {
-  const webviewRef = useRef<WebviewTag>(null);
   const forceUpdate = useForceUpdate(50);
   const baseRef = useRef<HTMLDivElement | null>(null);
   const nodeRectDiv = useRef<HTMLDivElement | null>(null);
@@ -716,7 +748,7 @@ function WebNode({
   const [resizing, setResizing] = useState(false);
   const [dragging, setDragging] = useState(false);
 
-  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [zoomLevel, setZoomLevel] = useState<number>(startZoomLevel);
 
   const sizeRef = useRef(size);
 
@@ -802,10 +834,6 @@ function WebNode({
   }
 
   function changeZoom(delta: number) {
-    if (webviewRef.current === null) {
-      return;
-    }
-    webviewRef.current.setZoomLevel(delta);
     setZoomLevel(delta);
   }
 
@@ -825,7 +853,7 @@ function WebNode({
       nodeDetails,
     };
     onSerialize();
-  }, [position, size]);
+  }, [position, size, zoomLevel]);
 
   useEffect(() => {
     baseRef.current?.addEventListener('keydown', () => {});
@@ -942,7 +970,7 @@ function WebNode({
           {/* )} */}
           <CompNode
             id={id}
-            webviewRef={webviewRef}
+            zoomLevel={zoomLevel}
             metadata={metadataLookup.current[id]}
             onAdd={(details) => {
               add(details, { x: position.x + size.width, y: position.y }, size);

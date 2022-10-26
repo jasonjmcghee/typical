@@ -175,17 +175,31 @@ export default class MenuBuilder {
           },
         },
         {
-          label: 'Zoom Out',
+          label: 'Zoom Out Node',
           accelerator: 'CommandOrControl+-',
           click: () => {
             this.mainWindow.webContents.send('zoom-out');
           },
         },
         {
-          label: 'Zoom In',
+          label: 'Zoom In Node',
           accelerator: 'CommandOrControl+=',
           click: () => {
             this.mainWindow.webContents.send('zoom-in');
+          },
+        },
+        {
+          label: 'Zoom Out All',
+          accelerator: 'CommandOrControl+Shift+-',
+          click: () => {
+            this.mainWindow.webContents.send('zoom-out-all');
+          },
+        },
+        {
+          label: 'Zoom In All',
+          accelerator: 'CommandOrControl+Shift+=',
+          click: () => {
+            this.mainWindow.webContents.send('zoom-in-all');
           },
         },
       ],

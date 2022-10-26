@@ -29,6 +29,8 @@ declare global {
       onFocusApp: (func: () => void) => void;
       onZoomIn: (func: () => void) => void;
       onZoomOut: (func: () => void) => void;
+      onZoomInAll: (func: () => void) => void;
+      onZoomOutAll: (func: () => void) => void;
       onSetPreloadScript: (func: (src: string) => void) => void;
       version: string;
     };

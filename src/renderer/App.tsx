@@ -546,6 +546,8 @@ const Main = () => {
       onFocusApp,
       onZoomIn,
       onZoomOut,
+      onZoomInAll,
+      onZoomOutAll,
       onSetPreloadScript,
     } = window.electron;
 
@@ -576,6 +578,22 @@ const Main = () => {
     });
 
     onZoomIn(() => {
+      if (nodeIdRef.current === null) {
+        return;
+      }
+      const current = metadataLookup.current[nodeIdRef.current];
+      current.changeZoom(current.zoomLevel * 1.5);
+    });
+
+    onZoomOut(() => {
+      if (nodeIdRef.current === null) {
+        return;
+      }
+      const current = metadataLookup.current[nodeIdRef.current];
+      current.changeZoom(current.zoomLevel * 1.5 ** -1);
+    });
+
+    onZoomInAll(() => {
       const zoomLevels = Object.values(metadataLookup.current).map(
         (v) => v.zoomLevel
       );
@@ -584,7 +602,7 @@ const Main = () => {
       });
     });
 
-    onZoomOut(() => {
+    onZoomOutAll(() => {
       const zoomLevels = Object.values(metadataLookup.current).map(
         (v) => v.zoomLevel
       );
