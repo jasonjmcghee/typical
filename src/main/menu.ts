@@ -26,6 +26,8 @@ export default class MenuBuilder {
       this.setupDevelopmentEnvironment();
     }
 
+    this.createContextMenu();
+
     const template =
       process.platform === 'darwin'
         ? this.buildDarwinTemplate()
@@ -37,7 +39,7 @@ export default class MenuBuilder {
     return menu;
   }
 
-  setupDevelopmentEnvironment(): void {
+  createContextMenu(): void {
     this.mainWindow.webContents.on('context-menu', (_, props) => {
       const { x, y } = props;
 
@@ -67,6 +69,8 @@ export default class MenuBuilder {
       ]).popup({ window: this.mainWindow });
     });
   }
+
+  setupDevelopmentEnvironment(): void {}
 
   buildDarwinTemplate(): MenuItemConstructorOptions[] {
     const subMenuAbout: DarwinMenuItemConstructorOptions = {

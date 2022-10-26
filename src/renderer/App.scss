@@ -34,6 +34,7 @@ body, * {
 }
 
 .search-bar-container {
+  user-select: none;
   width: 100%;
   display: flex;
   justify-content: center;

@@ -24,6 +24,7 @@ import {
 import styles from './Node.module.scss';
 import { buildUrl } from '../util';
 import { Position, Size } from '../preload';
+import { useRefState } from '../hooks/useRefState';
 
 interface SerializableNodeMetadata {
   position: Position;
@@ -35,6 +36,7 @@ interface NodeMetadata extends SerializableNodeMetadata {
   centerOnNode: () => void;
   forceUpdate: () => void;
   updateZIndex: (zIndex: number) => void;
+  setHiddenState: (hidden: boolean) => void;
 }
 
 type MetadataLookup = { [id: string]: NodeMetadata };
@@ -47,13 +49,9 @@ type TNode = {
   startPosition: Position;
   startSize: Size;
 
-  // eslint-disable-next-line react/require-default-props
-  hide?: boolean;
-  // eslint-disable-next-line react/require-default-props
-
   isSelected: () => boolean;
   zIndex: number;
-  onChangeSelection: (selected: boolean) => void;
+  onChangeSelection: (selected: boolean, center?: boolean) => void;
   onSerialize: () => void;
 
   panZoomRef: MutableRefObject<PanZoom | null>;
@@ -137,6 +135,7 @@ interface ITextNode {
 interface IWebviewNode {
   type: 'webview';
   url: string;
+  scrollTop: number;
 }
 
 interface ImageNode {
@@ -159,8 +158,8 @@ class NodeHelper {
     return NodeHelper.isNode(n) && n.type === 'text';
   }
 
-  static webview(url: string): IWebviewNode {
-    return { url: buildUrl(url), type: 'webview' };
+  static webview(url: string, scrollTop = 0): IWebviewNode {
+    return { url: buildUrl(url), scrollTop, type: 'webview' };
   }
 
   static isWebview(n: any): n is IWebviewNode {
@@ -179,7 +178,7 @@ class NodeHelper {
 interface GenericNodeProps {
   onRemove: () => void;
   selected: undefined | boolean;
-  onChangeSelection: (selected: boolean) => void;
+  onChangeSelection: (selected: boolean, center?: boolean) => void;
   onUpdatePinnedState: (pinned: boolean) => void;
   ignoreInput: undefined | boolean;
 }
@@ -190,7 +189,7 @@ interface CompNodeProps {
   onRemove: () => void;
   selected: undefined | boolean;
   ignoreInput: undefined | boolean;
-  onChangeSelection: (selected: boolean) => void;
+  onChangeSelection: (selected: boolean, center?: boolean) => void;
   onUpdatePinnedState: (pinned: boolean) => void;
   onSerialize: () => void;
 }
@@ -276,12 +275,14 @@ function WebviewNavbarUrl({
   onUpdateUrl,
   setNotFound,
   loaded,
+  onUrlBarFocused,
 }: {
   url: string;
   webviewRef: RefObject<Electron.WebviewTag>;
   onUpdateUrl: (url: string) => void;
   setNotFound: (notFound: boolean) => void;
   loaded: boolean;
+  onUrlBarFocused: () => void;
 }) {
   const [urlValue, setUrlValue] = useState<string>(url);
   const updateUrl = (u: string) => {
@@ -302,14 +303,31 @@ function WebviewNavbarUrl({
     }
   }, []);
 
+  const formStyle: CSSProperties = {
+    flexGrow: 1,
+    display: 'flex',
+    justifyContent: 'center',
+    position: 'relative',
+  };
+
+  const inputStyle: CSSProperties = {
+    color: 'white',
+    background: '#33373b',
+    width: '100%',
+    maxWidth: '500px',
+    borderRadius: '6px',
+    border: '1px solid #555555',
+    textAlign: 'center',
+  };
+
+  // if (focused) {
+  //   inputStyle['position'] = 'absolute';
+  //   inputStyle['fontSize'] = '64px';
+  // }
+
   return (
     <form
-      style={{
-        flexGrow: 1,
-        display: 'flex',
-        justifyContent: 'center',
-        position: 'relative',
-      }}
+      style={formStyle}
       onSubmit={(event) => {
         event.preventDefault();
         try {
@@ -327,14 +345,9 @@ function WebviewNavbarUrl({
         {loaded ? webviewRef.current?.getTitle() : ''}
       </div>
       <input
-        style={{
-          color: 'white',
-          background: '#33373b',
-          width: '100%',
-          maxWidth: '500px',
-          borderRadius: '6px',
-          border: '1px solid #555555',
-          textAlign: 'center',
+        style={inputStyle}
+        onFocus={(event) => {
+          onUrlBarFocused();
         }}
         onMouseDown={(event) => {
           event.stopPropagation();
@@ -358,6 +371,7 @@ function WebviewNavbar({
   webviewRef,
   onRemove,
   setNotFound,
+  onUrlBarFocused,
 }: {
   url: string;
   selected: undefined | boolean;
@@ -365,6 +379,7 @@ function WebviewNavbar({
   webviewRef: RefObject<Electron.WebviewTag>;
   setNotFound: (notFound: boolean) => void;
   onRemove: () => void;
+  onUrlBarFocused: () => void;
 }) {
   const forceUpdate = useForceUpdate();
   const [loaded, setLoaded] = useState<boolean>(false);
@@ -427,6 +442,7 @@ function WebviewNavbar({
             color: 'white',
           }}
           onClick={(event) => {
+            setNotFound(false);
             webviewRef.current?.reload();
             event.preventDefault();
           }}
@@ -440,6 +456,7 @@ function WebviewNavbar({
         onUpdateUrl={onDidUpdateUrl}
         setNotFound={setNotFound}
         loaded={loaded}
+        onUrlBarFocused={onUrlBarFocused}
       />
       <div>
         <button
@@ -492,16 +509,23 @@ const RawWebview = ({
 
 const Webview = ({
   id,
+  metadata,
   url,
+  scrollTop,
   selected,
   ignoreInput,
   onUpdateUrl,
   onUpdatePinnedState,
   onAdd,
   onRemove,
-}: CompNodeProps & { url: string; onUpdateUrl: (url: string) => void }) => {
+}: CompNodeProps & {
+  url: string;
+  scrollTop: number;
+  onUpdateUrl: (url: string) => void;
+  metadata: NodeMetadata;
+}) => {
   const webviewRef = useRef<WebviewTag>(null);
-  const [notFound, setNotFound] = useState<boolean>(false);
+  const [notFound, setNotFound, notFoundRef] = useRefState<boolean>(false);
 
   useEffect(() => {
     if (webviewRef.current !== null) {
@@ -519,6 +543,13 @@ const Webview = ({
       });
       webviewRef.current.addEventListener('close', async () => {
         onRemove();
+      });
+
+      window.addEventListener('online', () => {
+        if (notFoundRef.current) {
+          setNotFound(false);
+          webviewRef.current?.reload();
+        }
       });
     }
   }, []);
@@ -554,30 +585,33 @@ const Webview = ({
         webviewRef={webviewRef}
         onUpdatePinnedState={onUpdatePinnedState}
         setNotFound={setNotFound}
+        onUrlBarFocused={() => {}}
       />
-      {notFound && (
-        <div
-          style={{
-            ...style,
-            ...pointerStyles,
-            position: 'absolute',
-            color: 'grey',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-around',
-            alignItems: 'center',
-            background: '#33373b',
-            borderRadius: '6px',
-          }}
-        >
-          <div>
-            <SignalSlashIcon />
-            Failed to load
+      <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+        {notFound && (
+          <div
+            style={{
+              ...style,
+              ...pointerStyles,
+              position: 'absolute',
+              color: 'grey',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-around',
+              alignItems: 'center',
+              background: '#33373b',
+              borderRadius: '6px',
+            }}
+          >
+            <div>
+              <SignalSlashIcon />
+              Failed to load
+            </div>
           </div>
+        )}
+        <div style={{ ...style, ...pointerStyles }}>
+          <RawWebview id={id} webviewRef={webviewRef} src={url} />
         </div>
-      )}
-      <div style={{ ...style, ...pointerStyles }}>
-        <RawWebview id={id} webviewRef={webviewRef} src={url} />
       </div>
     </>
   );
@@ -585,6 +619,7 @@ const Webview = ({
 
 function CompNode({
   id,
+  metadata,
   onAdd,
   nodeDetails,
   selected,
@@ -592,6 +627,7 @@ function CompNode({
   ...rest
 }: CompNodeProps & {
   nodeDetails: TNodeDetails;
+  metadata: NodeMetadata;
 }) {
   if (NodeHelper.isText(nodeDetails)) {
     return (
@@ -622,7 +658,9 @@ function CompNode({
     return (
       <Webview
         id={id}
+        metadata={metadata}
         url={nodeDetails.url}
+        scrollTop={nodeDetails.scrollTop}
         selected={selected}
         {...rest}
         onSerialize={onSerialize}
@@ -660,7 +698,6 @@ function WebNode({
   zIndex,
   onChangeSelection,
   onSerialize,
-  hide = false,
 }: TNode) {
   const forceUpdate = useForceUpdate(50);
   const baseRef = useRef<HTMLDivElement | null>(null);
@@ -686,9 +723,6 @@ function WebNode({
   const scale = panZoomRef.current?.getTransform()?.scale ?? 1;
 
   const globalStyle: CSSProperties = {};
-  if (hide) {
-    globalStyle.display = 'none';
-  }
 
   let frameStyle: CSSProperties = {
     border: `4px ${selected ? 'white' : 'transparent'} solid`,
@@ -704,8 +738,8 @@ function WebNode({
     };
   }
 
-  const onSelected = (s: boolean) => {
-    onChangeSelection(s);
+  const onSelected = (s: boolean, center = false) => {
+    onChangeSelection(s, center);
     forceUpdate();
   };
 
@@ -733,6 +767,17 @@ function WebNode({
     );
   }
 
+  function setHiddenState(hidden: boolean) {
+    if (!baseRef.current) {
+      return;
+    }
+    if (hidden) {
+      baseRef.current.style.display = 'none';
+    } else {
+      baseRef.current.style.display = 'auto';
+    }
+  }
+
   useEffect(() => {
     if (baseRef.current !== null) {
       baseRef.current.style.zIndex = `${zIndex}`;
@@ -746,9 +791,13 @@ function WebNode({
   }
 
   useEffect(() => {
+    if (baseRef.current?.style?.display === 'none') {
+      return;
+    }
     metadataLookup.current[id] = {
       updateZIndex,
       centerOnNode,
+      setHiddenState,
       forceUpdate,
       position,
       size,
@@ -764,7 +813,7 @@ function WebNode({
   return (
     <div ref={baseRef} className={styles.frameStyle}>
       <Draggable
-        disabled={resizing}
+        disabled={panningRef.current || resizing}
         defaultClassName={`${styles.framePadded} ${
           panningRef.current ? '' : styles.draggable
         }`}
@@ -846,7 +895,7 @@ function WebNode({
             }}
             onMouseDown={(event) => {
               if (!selected && !event.metaKey) {
-                onSelected(true);
+                onSelected(true, event.altKey);
               }
             }}
             onMouseEnter={() => {
@@ -872,6 +921,7 @@ function WebNode({
           {/* )} */}
           <CompNode
             id={id}
+            metadata={metadataLookup.current[id]}
             onAdd={(details) => {
               add(details, { x: position.x + size.width, y: position.y }, size);
             }}

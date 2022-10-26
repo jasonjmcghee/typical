@@ -198,6 +198,12 @@
     "webpack-merge": "^5.8.0"
   },
   "build": {
+    "protocols": {
+      "name": "typical",
+      "schemes": [
+        "typical"
+      ]
+    },
     "productName": "Typical",
     "appId": "today.jason.Typical",
     "asar": true,

@@ -296,29 +296,31 @@ const CommandPalette = ({ onCommand }: CommandPaletteProps) => {
           [styles.commandPaletteItem]: true,
         })}
       />
-      {searchResults.length ? (
-        searchResults.map((s, i) => (
-          <SelectableItem
-            key={s.item}
-            value={s.item}
-            focused={selectedIndex === i}
-            onFocus={() => {
-              setSelectedIndex(i);
-            }}
-            onSelect={s.command}
-            shortcut={s.shortcut}
-          />
-        ))
-      ) : (
-        <div
-          className={classNames(
-            styles.commandPaletteResult,
-            styles.commandPaletteItem
-          )}
-        >
-          {searchValue}
-        </div>
-      )}
+      <div className={styles.commandPaletteResults}>
+        {searchResults.length ? (
+          searchResults.map((s, i) => (
+            <SelectableItem
+              key={s.item}
+              value={s.item}
+              focused={selectedIndex === i}
+              onFocus={() => {
+                setSelectedIndex(i);
+              }}
+              onSelect={s.command}
+              shortcut={s.shortcut}
+            />
+          ))
+        ) : (
+          <div
+            className={classNames(
+              styles.commandPaletteResult,
+              styles.commandPaletteItem
+            )}
+          >
+            {searchValue}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

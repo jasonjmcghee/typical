@@ -64,4 +64,10 @@ $command-palette-item-padding: 20px;
     outline: none;
     border-left: 3px solid rgba(0, 112, 243, 0.85);
   }
+
+  &Results {
+    max-height: 300px;
+    overflow-y: scroll;
+    overflow-x: hidden;
+  }
 }

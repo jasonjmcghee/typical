@@ -7,6 +7,7 @@ import {
   HomeIcon,
   MagnifyingGlassIcon,
   PlusIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/solid';
 import {
   CloseWithEscape,
@@ -45,6 +46,9 @@ function makeZIndex(raw: number): number {
 
 const Main = () => {
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
+  const [showInputBox, setShowInputBox] = useState<boolean>(false);
+  const [inputBoxValue, setInputBoxValue] = useState<boolean>(false);
+
   const panZoomRef = useRef<PanZoom | null>(null);
   const [panning, setWillPan, panningRef] = useRefState(false);
   const [activePanning, setIsPanning] = useState(false);
@@ -155,6 +159,26 @@ const Main = () => {
             />
           </form>
         )}
+        <button
+          type="button"
+          style={{
+            padding: 0,
+            width: '24px',
+            color: 'white',
+            background: 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            flexFlow: 'row-reverse',
+          }}
+          onClick={(event) => {
+            removeWorkspace(id);
+            event.preventDefault();
+          }}
+        >
+          <XMarkIcon
+            style={{ color: selected ? ' white' : 'grey', height: 16 }}
+          />
+        </button>
       </div>
     );
   };
@@ -180,6 +204,19 @@ const Main = () => {
     onSaveWorkspaceMetadata({ id, title: workspace.title });
     selectWorkspace(id, true);
     setTabs(saveDataRef.current.tabs);
+  };
+
+  const removeWorkspace = (id: string) => {
+    const index = tabs.findIndex((v) => v === id);
+    if (index !== -1) {
+      tabs.splice(index, 1);
+    }
+    saveDataRef.current.tabs = tabs;
+    delete saveDataRef.current.workspaceLookup[id];
+    if (saveDataRef.current.selectedWorkspaceId === id) {
+      setWorkspaceId(null);
+    }
+    setTabs([...tabs]);
   };
 
   // TODO: If no workspaces exist, create a workspace.
@@ -210,7 +247,7 @@ const Main = () => {
   const findStackIndex = (id: string) =>
     nodeStackIndexLookupRef.current[id] ?? -1;
 
-  function selectNode(id: string | null) {
+  function selectNode(id: string | null, center = false) {
     const temp = nodeIdRef.current;
     nodeIdRef.current = id;
 
@@ -225,6 +262,14 @@ const Main = () => {
       }
 
       reindexNodeStack();
+
+      if (center) {
+        setWillPan(true);
+        metadataLookup.current[id].centerOnNode();
+        setTimeout(() => {
+          setWillPan(false);
+        }, 0);
+      }
     }
 
     if (temp !== null) {
@@ -284,9 +329,9 @@ const Main = () => {
         zIndex={makeZIndex(nodeStackRef.current.length)}
         // isSelected={() => true}
         onSerialize={onSaveNodes}
-        onChangeSelection={(selected: boolean) => {
+        onChangeSelection={(selected: boolean, center = false) => {
           if (selected) {
-            selectNode(id);
+            selectNode(id, center);
           } else if (nodeIdRef.current === id) {
             selectNode(null);
           }
@@ -356,6 +401,10 @@ const Main = () => {
   }
 
   function initializeWorkspace(id: string) {
+    // Object.values(metadataLookup.current).forEach((v) => {
+    //   v.setHiddenState(true);
+    // });
+    metadataLookup.current = {};
     const workspace = workspaceLookup.current[id];
     setBackgroundStyle(workspace.backgroundStyle, true);
 
@@ -587,6 +636,16 @@ const Main = () => {
           }}
         />
       </CloseWithEscape>
+      {/* <CloseWithEscape */}
+      {/*   shown={showInputBox} */}
+      {/*   onHide={() => setShowInputBox(false)} */}
+      {/* > */}
+      {/*   <InputBox  */}
+      {/*     onBlur={() => setShowInputBox(false)}  */}
+      {/*     value={inputBoxValue} */}
+      {/*     onChange={setInputBoxValue} */}
+      {/*   /> */}
+      {/* </CloseWithEscape> */}
       {/* <Canvas /> */}
       {panning && (
         <style>{`*{cursor: ${
