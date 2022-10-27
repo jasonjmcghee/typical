@@ -17,7 +17,8 @@ export type Channels =
   | 'initial-load-finished'
   | 'focus'
   | 'open-url'
-  | 'webview-preload-script';
+  | 'webview-preload-script'
+  | 'request-edit-input';
 
 const on = (channel: Channels, func: (...args: unknown[]) => void) => {
   const subscription = (_event: IpcRendererEvent, ...args: unknown[]) =>
@@ -40,6 +41,9 @@ contextBridge.exposeInMainWorld('electron', {
   },
   onOpenCommandPalette: (func: () => void) => {
     on('open-command-palette', func);
+  },
+  onRequestEditInput: (func: () => void) => {
+    on('request-edit-input', func);
   },
   onCopyWorkspaceToClipboard: (func: () => void) => {
     on('copy-workspace-to-clipboard', func);

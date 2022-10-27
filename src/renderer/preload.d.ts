@@ -26,6 +26,7 @@ declare global {
       onAddText: (func: (objs: TextRecipe[]) => void) => void;
       initialLoadFinished: () => void;
       onOpenCommandPalette: (func: () => void) => void;
+      onRequestEditInput: (func: () => void) => void;
       onCopyWorkspaceToClipboard: (func: () => void) => void;
       onFocusApp: (func: () => void) => void;
       onZoomIn: (func: () => void) => void;

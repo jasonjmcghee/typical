@@ -1,10 +1,12 @@
 import Draggable from 'react-draggable';
 import { Resizable } from 're-resizable';
 import {
+  ChangeEvent,
   CSSProperties,
   HTMLAttributes,
   MutableRefObject,
   RefObject,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -287,11 +289,41 @@ function WebviewNavbarUrl({
   loaded: boolean;
   onUrlBarFocused: () => void;
 }) {
-  const [urlValue, setUrlValue] = useState<string>(url);
-  const updateUrl = (u: string) => {
-    setUrlValue(u);
-    onUpdateUrl(u);
-  };
+  const [urlValue, setUrlValue, urlValueRef] = useRefState<string>(url);
+  const updateUrl = useCallback(
+    (u: string) => {
+      setUrlValue(u);
+      onUpdateUrl(u);
+    },
+    [onUpdateUrl]
+  );
+
+  const onSetUrl = useCallback(() => {
+    try {
+      webviewRef.current?.stop();
+      setNotFound(false);
+      webviewRef.current?.loadURL(buildUrl(urlValueRef.current)).catch((e) => {
+        console.error(e);
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  }, [setNotFound, webviewRef]);
+
+  const onEditInput = useCallback(() => {
+    document.dispatchEvent(
+      new CustomEvent('edit-input', {
+        detail: {
+          inputValue: urlValue,
+          onChangeValue: (value: string) => updateUrl(value),
+          onSubmit: () => {
+            onSetUrl();
+          },
+        },
+      })
+    );
+  }, [onSetUrl, updateUrl, urlValue]);
+
   useEffect(() => {
     if (webviewRef.current !== null) {
       webviewRef.current.addEventListener('did-navigate', async (event) => {
@@ -304,6 +336,12 @@ function WebviewNavbarUrl({
         }
       );
     }
+
+    document.addEventListener('request-edit-input', onEditInput);
+
+    return () => {
+      document.removeEventListener('request-edit-input', onEditInput);
+    };
   }, []);
 
   const formStyle: CSSProperties = {
@@ -333,15 +371,7 @@ function WebviewNavbarUrl({
       style={formStyle}
       onSubmit={(event) => {
         event.preventDefault();
-        try {
-          webviewRef.current?.stop();
-          setNotFound(false);
-          webviewRef.current?.loadURL(buildUrl(urlValue)).catch((e) => {
-            console.error(e);
-          });
-        } catch (e) {
-          console.error(e);
-        }
+        onSetUrl();
       }}
     >
       <div className={styles.titleBar}>
@@ -350,7 +380,7 @@ function WebviewNavbarUrl({
       <input
         style={inputStyle}
         onFocus={(event) => {
-          onUrlBarFocused();
+          onEditInput();
         }}
         onMouseDown={(event) => {
           event.stopPropagation();
@@ -653,7 +683,7 @@ function CompNode({
 
   if (NodeHelper.isText(nodeDetails)) {
     const zoomAmount = 2.5 * zoomLevel ** 0.25;
-    let fontSize = `${zoomAmount * 1.7}em`;
+    const fontSize = `${zoomAmount * 1.7}em`;
     // if (textAreaRef.current !== null) {
     //   // const width = textAreaRef.current.getBoundingClientRect().width;
     //   fontSize = `${0.023 * size.width * zoomAmount}px`;

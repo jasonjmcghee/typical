@@ -138,6 +138,13 @@ export default class MenuBuilder {
             this.mainWindow.webContents.send('open-command-palette');
           },
         },
+        {
+          label: 'Input Box',
+          accelerator: 'Command+L',
+          click: () => {
+            this.mainWindow.webContents.send('request-edit-input');
+          },
+        },
       ],
     };
     const subMenuEdit: DarwinMenuItemConstructorOptions = {

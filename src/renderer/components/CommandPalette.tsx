@@ -11,6 +11,7 @@ import {
 import { KeyPress, useKeyPressEffect } from '../hooks/useKeyPress';
 import styles from './CommandPalette.module.scss';
 import { NodeHelper, TNodeDetails } from './Node';
+import { Input } from './Input';
 
 interface SelectableProps {
   value: string;
@@ -53,25 +54,6 @@ const SelectableItem = ({
         </div>
       )}
     </div>
-  );
-};
-
-interface InputProps {
-  className?: string;
-  value: string;
-  setValue: (value: string) => void;
-  autoFocus?: boolean;
-}
-
-const Input = ({ value, setValue, className, autoFocus }: InputProps) => {
-  return (
-    <input
-      autoFocus={autoFocus}
-      className={className}
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      placeholder="Start Typing..."
-    />
   );
 };
 

@@ -1,6 +1,6 @@
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.scss';
-import { CSSProperties, useEffect, useRef, useState } from 'react';
+import { CSSProperties, useCallback, useEffect, useRef, useState } from 'react';
 import { PanZoom, Transform } from 'panzoom';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -33,6 +33,8 @@ import { defaultPanZoomTransform, Zoomable } from './components/Zoomable';
 import { useNodes } from './hooks/useNodes';
 import { Workspace, WorkspaceLookup } from './components/types';
 import { useSerialization } from './hooks/useSerialization';
+import { InputBox } from './components/InputBox';
+import { doc } from 'prettier';
 
 const basicHelpText =
   'Welcome!\n' +
@@ -51,20 +53,41 @@ function makeZIndex(raw: number): number {
 function CopyClipboardLink({ onClick }: { onClick: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [clicked, setClicked] = useState(false);
-  const listener = () => {
+  const setClickedFalse = useCallback(() => setClicked(false), []);
+  const setClickedTrue = useCallback(() => setClicked(true), []);
+  const listener = useCallback(() => {
     if (ref.current) {
       ref.current.className = 'icons';
     }
-    setClicked(false);
-    return ref.current?.removeEventListener('animationiteration', listener);
-  };
+    setClickedFalse();
+    return () =>
+      ref.current?.removeEventListener('animationiteration', listener);
+  }, [setClickedFalse]);
+
+  const playClickAnimation = useCallback(() => {
+    setClickedTrue();
+    ref.current?.addEventListener('animationiteration', listener, false);
+  }, [setClickedTrue, listener]);
+
+  useEffect(() => {
+    document.addEventListener(
+      'play-copy-workspace-animation',
+      playClickAnimation
+    );
+
+    return () =>
+      document.removeEventListener(
+        'play-copy-workspace-animation',
+        playClickAnimation
+      );
+  }, []);
+
   return (
     <div
-      className={`link-button`}
+      className="link-button"
       onClick={() => {
         onClick();
-        setClicked(true);
-        ref.current?.addEventListener('animationiteration', listener, false);
+        playClickAnimation();
       }}
     >
       <div ref={ref} className={`icons${clicked ? ' clicked' : ''}`}>
@@ -78,7 +101,9 @@ function CopyClipboardLink({ onClick }: { onClick: () => void }) {
 const Main = () => {
   const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
   const [showInputBox, setShowInputBox] = useState<boolean>(false);
-  const [inputBoxValue, setInputBoxValue] = useState<boolean>(false);
+  const [inputBoxValue, setInputBoxValue] = useState<string>('');
+  const onChangeInputBoxValue = useRef<(val: string) => void>(() => {});
+  const onSubmitInputBoxValue = useRef<() => void>(() => {});
 
   const panZoomRef = useRef<PanZoom | null>(null);
   const [panning, setWillPan, panningRef] = useRefState(false);
@@ -632,6 +657,7 @@ const Main = () => {
       onOpenUrl,
       onSetPreloadScript,
       onCopyWorkspaceToClipboard,
+      onRequestEditInput,
     } = window.electron;
 
     onAddWebview((objs) => {
@@ -656,7 +682,27 @@ const Main = () => {
       setShowCommandPalette(true);
     });
 
+    onRequestEditInput(() => {
+      document.dispatchEvent(new CustomEvent('request-edit-input'));
+    });
+
+    document.addEventListener('edit-input', (event) => {
+      const { inputValue, onChangeValue, onSubmit } = event.detail as {
+        inputValue: string;
+        onChangeValue: (val: string) => void;
+        onSubmit: () => void;
+      };
+      setInputBoxValue(inputValue);
+      onChangeInputBoxValue.current = onChangeValue;
+      onSubmitInputBoxValue.current = () => {
+        onSubmit();
+        setShowInputBox(false);
+      };
+      setShowInputBox(true);
+    });
+
     onCopyWorkspaceToClipboard(() => {
+      document.dispatchEvent(new CustomEvent('play-copy-workspace-animation'));
       copyWorkspaceToClipboard();
     });
 
@@ -753,7 +799,7 @@ const Main = () => {
         </div>
         <div className="title-bar-rest" />
       </div>
-      {showCommandPalette && <div className="overlay" />}
+      {(showCommandPalette || showInputBox) && <div className="overlay" />}
       <div className="search-bar-container">
         <CopyClipboardLink
           onClick={() => {
@@ -789,16 +835,22 @@ const Main = () => {
           }}
         />
       </CloseWithEscape>
-      {/* <CloseWithEscape */}
-      {/*   shown={showInputBox} */}
-      {/*   onHide={() => setShowInputBox(false)} */}
-      {/* > */}
-      {/*   <InputBox  */}
-      {/*     onBlur={() => setShowInputBox(false)}  */}
-      {/*     value={inputBoxValue} */}
-      {/*     onChange={setInputBoxValue} */}
-      {/*   /> */}
-      {/* </CloseWithEscape> */}
+      <CloseWithEscape
+        shown={showInputBox}
+        onHide={() => setShowInputBox(false)}
+      >
+        <InputBox
+          onBlur={() => setShowInputBox(false)}
+          value={inputBoxValue}
+          onChangeValue={(value: string) => {
+            setInputBoxValue(value);
+            onChangeInputBoxValue.current(value);
+          }}
+          onSubmitValue={() => {
+            onSubmitInputBoxValue.current();
+          }}
+        />
+      </CloseWithEscape>
       {/* <Canvas /> */}
       {panning && (
         <style>{`*{cursor: ${
