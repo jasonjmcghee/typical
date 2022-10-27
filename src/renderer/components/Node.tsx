@@ -654,13 +654,13 @@ function CompNode({
   if (NodeHelper.isText(nodeDetails)) {
     const zoomAmount = 2.5 * zoomLevel ** 0.25;
     let fontSize = `${zoomAmount * 1.7}em`;
-    if (textAreaRef.current !== null) {
-      const width = textAreaRef.current.getBoundingClientRect().width;
-      fontSize = `${0.023 * size.width * zoomAmount}px`;
-    }
-    if (preRef.current !== null) {
-      fontSize = `${0.023 * size.width * zoomAmount}px`;
-    }
+    // if (textAreaRef.current !== null) {
+    //   // const width = textAreaRef.current.getBoundingClientRect().width;
+    //   fontSize = `${0.023 * size.width * zoomAmount}px`;
+    // }
+    // if (preRef.current !== null) {
+    //   fontSize = `${0.023 * size.width * zoomAmount}px`;
+    // }
     return (
       <GenericNode selected={selected} {...rest}>
         {selected ? (
