@@ -5,6 +5,7 @@ import { PanZoom, Transform } from 'panzoom';
 import { v4 as uuidv4 } from 'uuid';
 import {
   HomeIcon,
+  LinkIcon,
   MagnifyingGlassIcon,
   PlusIcon,
   XMarkIcon,
@@ -27,7 +28,7 @@ import { Position, Size } from './preload';
 import { useRefState } from './hooks/useRefState';
 import { defaultPanZoomTransform, Zoomable } from './components/Zoomable';
 import { useNodes } from './hooks/useNodes';
-import { WorkspaceLookup } from './components/types';
+import { Workspace, WorkspaceLookup } from './components/types';
 import { useSerialization } from './hooks/useSerialization';
 
 const basicHelpText =
@@ -193,17 +194,22 @@ const Main = () => {
     },
   });
 
-  const addWorkspace = () => {
+  const addWorkspace = (existingWorkspace?: Workspace) => {
     const id = uuidv4();
-    const workspace = makeDefaultWorkspace(id);
+    const workspace = existingWorkspace ?? makeDefaultWorkspace(id);
+    workspace.id = id;
     saveDataRef.current.selectedWorkspaceId = id;
     saveDataRef.current.workspaceLookup[id] = workspace;
     saveDataRef.current.appVersion = window.electron.version;
     saveDataRef.current.tabs = [...saveDataRef.current.tabs, id];
+    onSaveNodes();
+    onSavePanZoom();
+    onSaveBackgroundStyle(workspace.backgroundStyle);
     onSaveMetadata();
     onSaveWorkspaceMetadata({ id, title: workspace.title });
     selectWorkspace(id, true);
     setTabs(saveDataRef.current.tabs);
+    return workspace;
   };
 
   const removeWorkspace = (id: string) => {
@@ -217,6 +223,51 @@ const Main = () => {
       setWorkspaceId(null);
     }
     setTabs([...tabs]);
+    selectWorkspace(tabs[tabs.length - 1]);
+  };
+
+  const createWorkspaceFromString = (workspaceString: string) => {
+    try {
+      const noURI = decodeURIComponent(workspaceString);
+      const jsonString = Buffer.from(noURI, 'base64').toString();
+      const workspaceObj = JSON.parse(jsonString) as Workspace;
+      if (workspaceObj === null) {
+        console.error('Failed to parse workspace');
+      }
+      // Assign a new id each time...?
+      // Maybe we should prompt and ask...
+      const { id } = addWorkspace(workspaceObj);
+      // setTimeout(() => {
+      //   initializeWorkspace(id);
+      // }, 0);
+    } catch (e) {
+      console.error('Failed to parse workspace', e);
+    }
+  };
+
+  const getWorkspaceAsString = () => {
+    const id = selectedWorkspaceId;
+    if (id === null) {
+      throw new Error('No workspace selected.');
+    }
+    const workspace = saveDataRef.current.workspaceLookup[id];
+    if (workspace == null) {
+      throw new Error('No workspace data available.');
+    }
+    return encodeURIComponent(
+      Buffer.from(JSON.stringify(workspace)).toString('base64')
+    );
+  };
+
+  const createWorkspaceLink = () => {
+    return `typical://share?workspace=${getWorkspaceAsString()}`;
+  };
+
+  const copyWorkspaceToClipboard = () => {
+    window.navigator.clipboard
+      .writeText(createWorkspaceLink())
+      .then(() => console.log('Copied workspace to clipboard!'))
+      .catch(() => console.log('Failed to copy workspace to clipboard'));
   };
 
   // TODO: If no workspaces exist, create a workspace.
@@ -442,6 +493,7 @@ const Main = () => {
       setWorkspaceId(saveDataRef.current.selectedWorkspaceId ?? tabs[0]);
       return;
     }
+    debugger;
     if (Object.keys(nodes).length) {
       clear();
     }
@@ -548,7 +600,9 @@ const Main = () => {
       onZoomOut,
       onZoomInAll,
       onZoomOutAll,
+      onOpenUrl,
       onSetPreloadScript,
+      onCopyWorkspaceToClipboard,
     } = window.electron;
 
     onAddWebview((objs) => {
@@ -571,6 +625,10 @@ const Main = () => {
 
     onOpenCommandPalette(() => {
       setShowCommandPalette(true);
+    });
+
+    onCopyWorkspaceToClipboard(() => {
+      copyWorkspaceToClipboard();
     });
 
     onFocusApp(() => {
@@ -609,6 +667,25 @@ const Main = () => {
       Object.values(metadataLookup.current).forEach((v, i) => {
         v.changeZoom(zoomLevels[i] * 1.5 ** -1);
       });
+    });
+
+    onOpenUrl((url: string) => {
+      const parsedUrl = new URL(url);
+      let { pathname } = parsedUrl;
+      const { searchParams } = parsedUrl;
+
+      if (pathname.startsWith('//')) {
+        pathname = pathname.slice('//'.length);
+      }
+
+      if (pathname === 'share') {
+        // This should prompt with a description of what it is.
+        const value = searchParams.get('workspace');
+        if (value === null) {
+          return;
+        }
+        createWorkspaceFromString(value);
+      }
     });
 
     onSetPreloadScript((src: string) => {
@@ -650,6 +727,14 @@ const Main = () => {
       {showCommandPalette && <div className="overlay" />}
       <div className="search-bar-container">
         <div
+          className="link-button"
+          onClick={() => {
+            copyWorkspaceToClipboard();
+          }}
+        >
+          <LinkIcon style={{ height: 16 }} />
+        </div>
+        <div
           className="search-bar"
           onClick={() => {
             setShowCommandPalette(true);
@@ -671,6 +756,8 @@ const Main = () => {
               addDefault(command.details, { autoSelect: true });
             } else if (CommandHelper.isSetBackground(command)) {
               setBackgroundStyle(command.style, true);
+            } else if (CommandHelper.isCopyLink(command)) {
+              copyWorkspaceToClipboard();
             }
             setShowCommandPalette(false);
           }}

@@ -640,8 +640,10 @@ function CompNode({
   nodeDetails,
   selected,
   onSerialize,
+  size,
   ...rest
 }: CompNodeProps & {
+  size: Size;
   zoomLevel: number;
   nodeDetails: TNodeDetails;
   metadata: NodeMetadata;
@@ -653,14 +655,11 @@ function CompNode({
     const zoomAmount = 2.5 * zoomLevel ** 0.25;
     let fontSize = `${zoomAmount * 1.7}em`;
     if (textAreaRef.current !== null) {
-      fontSize = `${
-        (textAreaRef.current.getBoundingClientRect().width * zoomAmount) / 10
-      }px`;
+      const width = textAreaRef.current.getBoundingClientRect().width;
+      fontSize = `${0.023 * size.width * zoomAmount}px`;
     }
     if (preRef.current !== null) {
-      fontSize = `${
-        (preRef.current.getBoundingClientRect().width * zoomAmount) / 10
-      }px`;
+      fontSize = `${0.023 * size.width * zoomAmount}px`;
     }
     return (
       <GenericNode selected={selected} {...rest}>
@@ -744,13 +743,11 @@ function WebNode({
   const baseRef = useRef<HTMLDivElement | null>(null);
   const nodeRectDiv = useRef<HTMLDivElement | null>(null);
   const [position, setPosition] = useState(startPosition);
-  const [size, setSize] = useState(startSize);
+  const [size, setSize, sizeRef] = useRefState(startSize);
   const [resizing, setResizing] = useState(false);
   const [dragging, setDragging] = useState(false);
 
   const [zoomLevel, setZoomLevel] = useState<number>(startZoomLevel);
-
-  const sizeRef = useRef(size);
 
   const selected = isSelected();
 
@@ -971,6 +968,7 @@ function WebNode({
           <CompNode
             id={id}
             zoomLevel={zoomLevel}
+            size={size}
             metadata={metadataLookup.current[id]}
             onAdd={(details) => {
               add(details, { x: position.x + size.width, y: position.y }, size);

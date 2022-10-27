@@ -48,7 +48,7 @@ export default class MenuBuilder {
           label: 'New Browser',
           click: () => {
             this.mainWindow.webContents.send('add-webview', [
-              { url: 'https://google.com', x, y: y - 40 },
+              { url: 'https://google.com', position: { x, y: y - 40 } },
             ]);
           },
         },
@@ -56,7 +56,7 @@ export default class MenuBuilder {
           label: 'New Text',
           click: () => {
             this.mainWindow.webContents.send('add-text', [
-              { text: 'New text', x, y: y - 40 },
+              { text: 'New text', position: { x, y: y - 40 } },
             ]);
           },
         },
@@ -64,6 +64,12 @@ export default class MenuBuilder {
           label: 'Command Palette',
           click: () => {
             this.mainWindow.webContents.send('open-command-palette');
+          },
+        },
+        {
+          label: 'Copy Workspace URL to Clipboard',
+          click: () => {
+            this.mainWindow.webContents.send('copy-workspace-to-clipboard');
           },
         },
       ]).popup({ window: this.mainWindow });

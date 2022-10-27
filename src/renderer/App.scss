@@ -38,17 +38,33 @@ body, * {
   width: 100%;
   display: flex;
   justify-content: center;
+  position: absolute;
+  top: 32px;
+  gap: 12px;
+}
+
+.link-button {
+  width: 32px;
+  top: 32px;
+  border-radius: 12px;
+  background-color: #33373b;
+  color: #c4c4c4;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0px 3px 6px -4px rgba(0, 0, 0, 0.12), 0px 6px 16px rgba(0, 0, 0, 0.08), 0px 9px 28px 8px rgba(0, 0, 0, 0.05);
 }
 
 .search-bar {
+  cursor: pointer;
   display: flex;
   justify-content: center;
   gap: 6px;
-  position: fixed;
   font-size: 14px;
   padding: 8px 16px;
-  top: 32px;
-  border-radius: 16px;
+  border-radius: 12px;
   background-color: #33373b;
   color: #c4c4c4;
   z-index: 100;

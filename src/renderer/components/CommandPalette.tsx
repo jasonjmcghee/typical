@@ -113,7 +113,7 @@ interface ActionItem {
   shortcut?: KeyPress;
 }
 
-type CommandType = 'setBackground' | 'addNode';
+type CommandType = 'setBackground' | 'addNode' | 'copyLink';
 
 interface Command {
   type: CommandType;
@@ -124,9 +124,13 @@ interface AddNodeCommand extends Command {
   details: TNodeDetails;
 }
 
-interface SetBackground {
+interface SetBackground extends Command {
   type: 'setBackground';
   style: CSSProperties;
+}
+
+interface CopyLink extends Command {
+  type: 'copyLink';
 }
 
 class CommandHelper {
@@ -149,6 +153,14 @@ class CommandHelper {
   static isSetBackground(n: any): n is SetBackground {
     return CommandHelper.isCommand(n) && n.type === 'setBackground';
   }
+
+  static copyLink(): CopyLink {
+    return { type: 'copyLink' };
+  }
+
+  static isCopyLink(n: any): n is CopyLink {
+    return CommandHelper.isCommand(n) && n.type === 'copyLink';
+  }
 }
 
 const browser = (name: string, url: string) => ({
@@ -165,7 +177,11 @@ const background = (name: string, value: string) => ({
 
 const commands: ActionItem[] = [
   {
-    item: 'Text',
+    item: 'New Text Node',
+    command: CommandHelper.addNode(NodeHelper.text('A new text node!')),
+  },
+  {
+    item: 'New Text Node',
     command: CommandHelper.addNode(NodeHelper.text('A new text node!')),
   },
   browser('Google', 'https://www.google.com'),

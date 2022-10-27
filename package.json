@@ -145,6 +145,7 @@
     "@typescript-eslint/eslint-plugin": "^5.33.1",
     "@typescript-eslint/parser": "^5.33.1",
     "browserslist-config-erb": "^0.0.3",
+    "buffer": "^6.0.3",
     "chalk": "^4.1.2",
     "concurrently": "^7.3.0",
     "core-js": "^3.24.1",
@@ -199,10 +200,11 @@
   },
   "build": {
     "protocols": {
-      "name": "typical",
+      "name": "Typical",
       "schemes": [
         "typical"
-      ]
+      ],
+      "role": "Viewer"
     },
     "productName": "Typical",
     "appId": "today.jason.Typical",
@@ -251,7 +253,10 @@
       "target": [
         "AppImage"
       ],
-      "category": "Development"
+      "category": "Development",
+      "desktop": {
+        "MimeType": "x-scheme-handler/typical"
+      }
     },
     "directories": {
       "app": "release/app",

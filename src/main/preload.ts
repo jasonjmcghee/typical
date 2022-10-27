@@ -11,10 +11,12 @@ export type Channels =
   | 'set-title'
   | 'add-text'
   | 'open-command-palette'
+  | 'copy-workspace-to-clipboard'
   | 'swap-node-forward'
   | 'swap-node-release'
   | 'initial-load-finished'
   | 'focus'
+  | 'open-url'
   | 'webview-preload-script';
 
 const on = (channel: Channels, func: (...args: unknown[]) => void) => {
@@ -39,6 +41,9 @@ contextBridge.exposeInMainWorld('electron', {
   onOpenCommandPalette: (func: () => void) => {
     on('open-command-palette', func);
   },
+  onCopyWorkspaceToClipboard: (func: () => void) => {
+    on('copy-workspace-to-clipboard', func);
+  },
   onFocusApp: (func: () => void) => {
     on('focus', func);
   },
@@ -53,6 +58,9 @@ contextBridge.exposeInMainWorld('electron', {
   },
   onZoomOutAll: (func: () => void) => {
     on('zoom-out-all', func);
+  },
+  onOpenUrl: (func: (url: string) => void) => {
+    on('open-url', func);
   },
   setTitle: (title: string) => {
     ipcRenderer.send('set-title', title);

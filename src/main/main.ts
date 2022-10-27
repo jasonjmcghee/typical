@@ -213,6 +213,7 @@ if (!gotTheLock) {
     .catch(console.log);
 
   app.on('open-url', (event, url) => {
-    dialog.showErrorBox('Welcome Back', `You arrived from: ${url}`);
+    event.preventDefault();
+    mainWindow?.webContents.send('open-url', url);
   });
 }
