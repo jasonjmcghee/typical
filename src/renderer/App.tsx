@@ -4,6 +4,9 @@ import { CSSProperties, useEffect, useRef, useState } from 'react';
 import { PanZoom, Transform } from 'panzoom';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  CheckIcon,
+  ClipboardDocumentCheckIcon,
+  ClipboardIcon,
   HomeIcon,
   LinkIcon,
   MagnifyingGlassIcon,
@@ -43,6 +46,33 @@ const basicHelpText =
 
 function makeZIndex(raw: number): number {
   return 50 + 10 * raw;
+}
+
+function CopyClipboardLink({ onClick }: { onClick: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [clicked, setClicked] = useState(false);
+  const listener = () => {
+    if (ref.current) {
+      ref.current.className = 'icons';
+    }
+    setClicked(false);
+    return ref.current?.removeEventListener('animationiteration', listener);
+  };
+  return (
+    <div
+      className={`link-button`}
+      onClick={() => {
+        onClick();
+        setClicked(true);
+        ref.current?.addEventListener('animationiteration', listener, false);
+      }}
+    >
+      <div ref={ref} className={`icons${clicked ? ' clicked' : ''}`}>
+        <LinkIcon className="icon" />
+        <ClipboardDocumentCheckIcon className="icon" />
+      </div>
+    </div>
+  );
 }
 
 const Main = () => {
@@ -493,7 +523,6 @@ const Main = () => {
       setWorkspaceId(saveDataRef.current.selectedWorkspaceId ?? tabs[0]);
       return;
     }
-    debugger;
     if (Object.keys(nodes).length) {
       clear();
     }
@@ -726,14 +755,11 @@ const Main = () => {
       </div>
       {showCommandPalette && <div className="overlay" />}
       <div className="search-bar-container">
-        <div
-          className="link-button"
+        <CopyClipboardLink
           onClick={() => {
             copyWorkspaceToClipboard();
           }}
-        >
-          <LinkIcon style={{ height: 16 }} />
-        </div>
+        />
         <div
           className="search-bar"
           onClick={() => {

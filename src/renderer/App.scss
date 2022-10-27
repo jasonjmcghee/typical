@@ -44,6 +44,7 @@ body, * {
 }
 
 .link-button {
+  height: 32px;
   width: 32px;
   top: 32px;
   border-radius: 12px;
@@ -55,13 +56,47 @@ body, * {
   justify-content: center;
   cursor: pointer;
   box-shadow: 0px 3px 6px -4px rgba(0, 0, 0, 0.12), 0px 6px 16px rgba(0, 0, 0, 0.08), 0px 9px 28px 8px rgba(0, 0, 0, 0.05);
+  border: 2px solid transparent;
+  overflow: hidden;
+
+  .icons {
+    display: flex;
+    flex-direction: column;
+    place-self: flex-start;
+
+    &.clicked {
+      animation: activate 1s infinite;
+    }
+
+    @keyframes activate {
+      0% {
+        transform: translateY(0%);
+      }
+
+      32% {
+        transform: translateY(1.1 * -2em);
+      }
+
+      56% {
+        transform: translateY(0.9 * -2em);
+      }
+      100% {
+        transform: translateY(-2em);
+      }
+    }
+  }
+
+  .icon {
+    height: 16px;
+    padding: 8px;
+  }
 }
 
 .search-bar {
   cursor: pointer;
   display: flex;
-  justify-content: center;
-  gap: 6px;
+  gap: 10px;
+  align-items: center;
   font-size: 14px;
   padding: 8px 16px;
   border-radius: 12px;

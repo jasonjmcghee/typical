@@ -180,10 +180,6 @@ const commands: ActionItem[] = [
     item: 'New Text Node',
     command: CommandHelper.addNode(NodeHelper.text('A new text node!')),
   },
-  {
-    item: 'New Text Node',
-    command: CommandHelper.addNode(NodeHelper.text('A new text node!')),
-  },
   browser('Google', 'https://www.google.com'),
   browser('DuckDuckGo', 'https://duckduckgo.com'),
   background(
@@ -279,8 +275,8 @@ const CommandPalette = ({ onCommand }: CommandPaletteProps) => {
     if (!item) {
       const nodeData = NodeHelper.webview(searchValue);
       item = {
-        item: searchValue,
-        command: () => onCommand(nodeData),
+        item: `New Browser: ${searchValue}`,
+        command: CommandHelper.addNode(nodeData),
       };
       addItem(item);
     }
