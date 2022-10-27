@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { MutableRefObject, useEffect, useRef } from 'react';
 
 interface InputProps {
   className?: string;
@@ -6,6 +6,7 @@ interface InputProps {
   setValue: (value: string) => void;
   autoFocus?: boolean;
   autoSelect?: boolean;
+  refocusRef?: MutableRefObject<() => void>;
 }
 
 export const Input = ({
@@ -14,12 +15,25 @@ export const Input = ({
   className,
   autoFocus,
   autoSelect,
+  refocusRef,
 }: InputProps) => {
   const ref = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    ref.current?.select();
-  }, []);
+    if (autoSelect) {
+      ref.current?.select();
+    }
+  }, [autoSelect]);
+
+  useEffect(() => {
+    if (refocusRef) {
+      refocusRef.current = () => {
+        setTimeout(() => {
+          ref.current?.focus();
+        }, 0);
+      };
+    }
+  }, [refocusRef]);
 
   return (
     <input
@@ -27,7 +41,14 @@ export const Input = ({
       autoFocus={autoFocus}
       className={className}
       value={value}
-      onChange={(e) => setValue(e.target.value)}
+      onChange={(e) => {
+        setValue(e.target.value);
+        if (refocusRef) {
+          setTimeout(() => {
+            ref.current?.focus();
+          }, 10);
+        }
+      }}
       placeholder="Start Typing..."
     />
   );

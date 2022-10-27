@@ -9,14 +9,13 @@
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, globalShortcut } from 'electron';
 import Store from 'electron-store';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import MenuBuilder from './menu';
 import { resolveHtmlPath, webviewPreloadScript } from './util';
 import * as os from 'os';
-import { web } from 'webpack';
 
 class AppUpdater {
   constructor() {
@@ -159,6 +158,39 @@ const createWindow = async () => {
   // Remove this if your app does not use auto updates
   // eslint-disable-next-line
   // new AppUpdater();
+
+  mainWindow.on('focus', () => {
+    globalShortcut.register('CommandOrControl+F', function () {
+      if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('on-find');
+      }
+    });
+  });
+  mainWindow.on('blur', () => {
+    globalShortcut.unregister('CommandOrControl+F');
+  });
+
+  ipcMain.on('find', (event, search: string, next?: boolean) => {
+    if (!mainWindow) {
+      throw new Error('"mainWindow" is not defined');
+    }
+    mainWindow.webContents.findInPage(search, { findNext: next });
+  });
+
+  ipcMain.on('stop-find', () => {
+    if (!mainWindow) {
+      throw new Error('"mainWindow" is not defined');
+    }
+    mainWindow.webContents.stopFindInPage('clearSelection');
+  });
+
+  mainWindow.webContents.on('found-in-page', (event, result) => {
+    if (mainWindow && mainWindow.webContents) {
+      // if (result.finalUpdate) {
+      mainWindow.webContents.send('found-in-page');
+      // }
+    }
+  });
 };
 
 /**

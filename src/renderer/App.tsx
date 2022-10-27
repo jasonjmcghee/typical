@@ -37,6 +37,7 @@ import { useNodes } from './hooks/useNodes';
 import { Workspace, WorkspaceLookup } from './components/types';
 import { useSerialization } from './hooks/useSerialization';
 import { InputBox } from './components/InputBox';
+import { buildUrl } from './util';
 
 const basicHelpText =
   'Welcome!\n' +
@@ -105,12 +106,18 @@ const Main = () => {
     'https://www.google.com',
     'https://news.ycombinator.com',
   ]);
-  const [showCommandPalette, setShowCommandPalette] =
+  const searchHistoryRef = useRef<string[]>([]);
+  const [showCommandPalette, setShowCommandPalette, showCommandPaletteRef] =
     useRefState<boolean>(false);
-  const [showInputBox, setShowInputBox] = useRefState<boolean>(false);
+  const [showSearchBar, setShowSearchBar, showSearchBarRef] =
+    useRefState(false);
+  const [showInputBox, setShowInputBox, showInputBoxRef] =
+    useRefState<boolean>(false);
   const [inputBoxValue, setInputBoxValue] = useState<string>('');
   const onChangeInputBoxValue = useRef<(val: string) => void>(() => {});
   const onSubmitInputBoxValue = useRef<() => void>(() => {});
+  const onSearchRef = useRef<(search: string) => void>(() => {});
+  const refocusInputRef = useRef<() => void>(() => {});
 
   const panZoomRef = useRef<PanZoom | null>(null);
   const [panning, setWillPan, panningRef] = useRefState(false);
@@ -120,6 +127,8 @@ const Main = () => {
   const backgroundRef = useRef<HTMLDivElement | null>(null);
 
   const metadataLookup = useRef<MetadataLookup>({});
+
+  const [searchValue, setSearchValue] = useState('');
 
   const {
     nodeStackRef,
@@ -665,7 +674,19 @@ const Main = () => {
       onSetPreloadScript,
       onCopyWorkspaceToClipboard,
       onRequestEditInput,
+      onFind,
+      doFind,
+      doStopFind,
+      onFoundInPage,
     } = window.electron;
+
+    onSearchRef.current = (s: string, next?: boolean) => {
+      if (s.length) {
+        doFind(s, next);
+      } else {
+        doStopFind();
+      }
+    };
 
     onAddWebview((objs) => {
       objs.forEach(({ url, position }) => {
@@ -686,7 +707,7 @@ const Main = () => {
     });
 
     onOpenCommandPalette(() => {
-      setShowCommandPalette(true);
+      setShowCommandPalette(!showCommandPaletteRef.current);
     });
 
     onRequestEditInput(() => {
@@ -694,6 +715,10 @@ const Main = () => {
     });
 
     document.addEventListener('edit-input', (event) => {
+      if (showInputBoxRef.current) {
+        setShowInputBox(false);
+        return;
+      }
       const { inputValue, onChangeValue, onSubmit } = event.detail as {
         inputValue: string;
         onChangeValue: (val: string) => void;
@@ -768,6 +793,14 @@ const Main = () => {
         }
         createWorkspaceFromString(value);
       }
+    });
+
+    onFind(() => {
+      setShowSearchBar(!showSearchBarRef.current);
+    });
+
+    onFoundInPage(() => {
+      refocusInputRef.current();
     });
 
     onSetPreloadScript((src: string) => {
@@ -863,6 +896,8 @@ const Main = () => {
         onHide={() => setShowInputBox(false)}
       >
         <InputBox
+          title="URL"
+          prepareSaveSearch={(search) => buildUrl(search)}
           history={historyRef}
           value={inputBoxValue}
           onChangeValue={(value: string) => {
@@ -872,6 +907,26 @@ const Main = () => {
           onSubmitValue={() => {
             onSubmitInputBoxValue.current();
           }}
+        />
+      </CloseWithEscape>
+      <CloseWithEscape
+        shown={showSearchBar}
+        onHide={() => setShowSearchBar(false)}
+      >
+        <InputBox
+          alignBottom
+          title="Search"
+          history={searchHistoryRef}
+          value={searchValue}
+          onChangeValue={(value: string) => {
+            setSearchValue(value);
+            onSearchRef.current(value, true);
+          }}
+          onSubmitValue={() => {
+            onSearchRef.current(searchValue);
+          }}
+          refocusRef={refocusInputRef}
+          hideHistory
         />
       </CloseWithEscape>
       {/* <Canvas /> */}

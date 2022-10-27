@@ -71,3 +71,8 @@ $command-palette-item-padding: 20px;
     overflow-x: hidden;
   }
 }
+
+.alignBottom {
+  top: revert;
+  bottom: 0;
+}

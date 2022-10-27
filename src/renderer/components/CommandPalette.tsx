@@ -4,6 +4,7 @@ import {
   CSSProperties,
   DetailedHTMLProps,
   HTMLAttributes,
+  MutableRefObject,
   useCallback,
   useEffect,
   useRef,
@@ -224,12 +225,14 @@ interface CommandPaletteExtraProps {
   onCommand: (command: Command) => void;
   commands: ActionItem[];
   title: string;
-  onNoResults: (search: string) => ActionItem;
+  onNoResults: (search: string) => ActionItem | null;
   allowSelectNone?: boolean;
   autoSelectFirstOption?: boolean;
   autoSelectInitialInputText?: boolean;
   onChangeValue?: (value: string) => void;
   initialValue?: string;
+  refocusRef?: MutableRefObject<() => void>;
+  alignBottom?: boolean;
 }
 
 type CommandPaletteProps = DetailedHTMLProps<
@@ -243,7 +246,9 @@ const CommandPalette = ({
   commands,
   title,
   onNoResults,
+  alignBottom = false,
   onChangeValue = () => {},
+  refocusRef,
   initialValue = '',
   // Allows the user to submit any input
   allowSelectNone = true,
@@ -297,7 +302,9 @@ const CommandPalette = ({
 
     if (!item) {
       item = onNoResults(searchValue);
-      addItem(item);
+      if (item) {
+        addItem(item);
+      }
     }
 
     if (item) {
@@ -374,7 +381,12 @@ const CommandPalette = ({
   useKeyPressEffect(selectItem, 'Enter');
 
   return (
-    <div className={styles.commandPalette}>
+    <div
+      className={classNames({
+        [styles.commandPalette]: true,
+        [styles.alignBottom]: alignBottom,
+      })}
+    >
       <div
         className={classNames(
           styles.commandPaletteItem,
@@ -388,6 +400,7 @@ const CommandPalette = ({
       </div>
       <Input
         autoFocus
+        refocusRef={refocusRef}
         autoSelect={autoSelectInitialInputText}
         value={searchValue}
         setValue={updateSearchValue}

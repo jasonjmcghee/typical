@@ -1,4 +1,4 @@
-import { app, contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import { TextRecipe, WebviewRecipe } from '../renderer/preload';
 
 export type Channels =
@@ -17,12 +17,15 @@ export type Channels =
   | 'initial-load-finished'
   | 'focus'
   | 'open-url'
+  | 'on-find'
   | 'webview-preload-script'
-  | 'request-edit-input';
+  | 'request-edit-input'
+  | 'found-in-page';
 
 const on = (channel: Channels, func: (...args: unknown[]) => void) => {
-  const subscription = (_event: IpcRendererEvent, ...args: unknown[]) =>
+  const subscription = (_event: IpcRendererEvent, ...args: unknown[]) => {
     func(...args);
+  };
   ipcRenderer.on(channel, subscription);
 
   return () => {
@@ -48,6 +51,9 @@ contextBridge.exposeInMainWorld('electron', {
   onCopyWorkspaceToClipboard: (func: () => void) => {
     on('copy-workspace-to-clipboard', func);
   },
+  onFind: (func: () => void) => {
+    on('on-find', func);
+  },
   onFocusApp: (func: () => void) => {
     on('focus', func);
   },
@@ -71,6 +77,15 @@ contextBridge.exposeInMainWorld('electron', {
   },
   initialLoadFinished: () => {
     ipcRenderer.send('initial-load-finished');
+  },
+  doFind: (search: string, next?: boolean) => {
+    ipcRenderer.send('find', search, next);
+  },
+  doStopFind: () => {
+    ipcRenderer.send('stop-find');
+  },
+  onFoundInPage: (func: (results: unknown) => void) => {
+    on('found-in-page', func);
   },
   // fromId: webContents.fromId,
   onSetPreloadScript: (func: (src: string) => void) => {

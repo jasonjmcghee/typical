@@ -28,6 +28,10 @@ declare global {
       onOpenCommandPalette: (func: () => void) => void;
       onRequestEditInput: (func: () => void) => void;
       onCopyWorkspaceToClipboard: (func: () => void) => void;
+      onFind: (func: (detail: unknown) => void) => void;
+      doFind: (search: string, next?: boolean) => void;
+      doStopFind: () => void;
+      onFoundInPage: (func: (results: unknown) => void) => void;
       onFocusApp: (func: () => void) => void;
       onZoomIn: (func: () => void) => void;
       onZoomOut: (func: () => void) => void;
