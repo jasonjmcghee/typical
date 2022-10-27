@@ -289,6 +289,7 @@ function WebviewNavbarUrl({
   loaded: boolean;
   onUrlBarFocused: () => void;
 }) {
+  const forceUpdate = useForceUpdate();
   const [urlValue, setUrlValue, urlValueRef] = useRefState<string>(url);
   const updateUrl = useCallback(
     (u: string) => {
@@ -314,7 +315,7 @@ function WebviewNavbarUrl({
     document.dispatchEvent(
       new CustomEvent('edit-input', {
         detail: {
-          inputValue: urlValue,
+          inputValue: urlValueRef.current,
           onChangeValue: (value: string) => updateUrl(value),
           onSubmit: () => {
             onSetUrl();
@@ -335,6 +336,9 @@ function WebviewNavbarUrl({
           setUrlValue(event.url);
         }
       );
+      webviewRef.current.addEventListener('did-finish-load', async (event) => {
+        forceUpdate();
+      });
     }
 
     document.addEventListener('request-edit-input', onEditInput);
@@ -399,15 +403,15 @@ function WebviewNavbarUrl({
 
 function WebviewNavbar({
   url,
+  loaded,
   onUpdateUrl,
-  selected,
   webviewRef,
   onRemove,
   setNotFound,
   onUrlBarFocused,
 }: {
   url: string;
-  selected: undefined | boolean;
+  loaded: boolean;
   onUpdateUrl: (url: string) => void;
   webviewRef: RefObject<Electron.WebviewTag>;
   setNotFound: (notFound: boolean) => void;
@@ -415,23 +419,14 @@ function WebviewNavbar({
   onUrlBarFocused: () => void;
 }) {
   const forceUpdate = useForceUpdate();
-  const [loaded, setLoaded] = useState<boolean>(false);
 
   const onDidUpdateUrl = (urlValue: string) => {
     onUpdateUrl(urlValue);
     forceUpdate();
   };
 
-  useEffect(() => {
-    if (webviewRef.current !== null) {
-      webviewRef.current.addEventListener('dom-ready', async (event) => {
-        setLoaded(true);
-      });
-    }
-  }, []);
-
   return (
-    <div className={`${styles.webviewNavbar} ${selected ? '' : styles.hide}`}>
+    <div className={styles.webviewNavbar}>
       <div style={{ display: 'flex', gap: '20px' }}>
         <button
           type="button"
@@ -622,16 +617,18 @@ const Webview = ({
 
   return (
     <>
-      <WebviewNavbar
-        url={url}
-        onRemove={onRemove}
-        onUpdateUrl={onUpdateUrl}
-        selected={selected}
-        webviewRef={webviewRef}
-        onUpdatePinnedState={onUpdatePinnedState}
-        setNotFound={setNotFound}
-        onUrlBarFocused={() => {}}
-      />
+      {selected && (
+        <WebviewNavbar
+          url={url}
+          loaded={domReady}
+          onRemove={onRemove}
+          onUpdateUrl={onUpdateUrl}
+          webviewRef={webviewRef}
+          onUpdatePinnedState={onUpdatePinnedState}
+          setNotFound={setNotFound}
+          onUrlBarFocused={() => {}}
+        />
+      )}
       <div style={{ width: '100%', height: '100%', position: 'relative' }}>
         {notFound && (
           <div
@@ -728,7 +725,7 @@ function CompNode({
         id={id}
         zoomLevel={zoomLevel}
         metadata={metadata}
-        url={nodeDetails.url}
+        url={nodeDetails.url || 'https://www.google.com'}
         scrollTop={nodeDetails.scrollTop}
         selected={selected}
         {...rest}

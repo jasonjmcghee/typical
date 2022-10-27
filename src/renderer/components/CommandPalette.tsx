@@ -4,6 +4,7 @@ import {
   CSSProperties,
   DetailedHTMLProps,
   HTMLAttributes,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -14,6 +15,7 @@ import { NodeHelper, TNodeDetails } from './Node';
 import { Input } from './Input';
 
 interface SelectableProps {
+  id: string;
   value: string;
   focused: boolean;
   onFocus?: () => void;
@@ -22,6 +24,7 @@ interface SelectableProps {
 }
 
 const SelectableItem = ({
+  id,
   value,
   focused,
   onFocus,
@@ -35,6 +38,7 @@ const SelectableItem = ({
   }, shortcut);
   return (
     <div
+      id={id}
       className={classNames(
         styles.commandPaletteResult,
         styles.commandPaletteItem,
@@ -86,7 +90,8 @@ const CloseWithEscape = ({ shown, onHide, children }: CloseWithEscapeProps) => {
   useKeyPressEffect(() => {
     onHide();
   }, 'Escape');
-  return <div onBlur={() => onHide()}>{shown && children}</div>;
+  const ref = useRef<HTMLDivElement>(null);
+  return <div ref={ref}>{shown && children}</div>;
 };
 
 interface ActionItem {
@@ -95,7 +100,7 @@ interface ActionItem {
   shortcut?: KeyPress;
 }
 
-type CommandType = 'setBackground' | 'addNode' | 'copyLink';
+type CommandType = 'setBackground' | 'addNode' | 'copyLink' | 'navigate';
 
 interface Command {
   type: CommandType;
@@ -113,6 +118,11 @@ interface SetBackground extends Command {
 
 interface CopyLink extends Command {
   type: 'copyLink';
+}
+
+interface Navigate extends Command {
+  type: 'navigate';
+  url: string;
 }
 
 class CommandHelper {
@@ -143,6 +153,14 @@ class CommandHelper {
   static isCopyLink(n: any): n is CopyLink {
     return CommandHelper.isCommand(n) && n.type === 'copyLink';
   }
+
+  static navigate(): Navigate {
+    return { type: 'navigate' };
+  }
+
+  static isNavigate(n: any): n is Navigate {
+    return CommandHelper.isCommand(n) && n.type === 'navigate';
+  }
 }
 
 const browser = (name: string, url: string) => ({
@@ -157,7 +175,7 @@ const background = (name: string, value: string) => ({
   }),
 });
 
-const commands: ActionItem[] = [
+const mainCommands: ActionItem[] = [
   {
     item: 'New Text Node',
     command: CommandHelper.addNode(NodeHelper.text('A new text node!')),
@@ -204,6 +222,14 @@ const commands: ActionItem[] = [
 
 interface CommandPaletteExtraProps {
   onCommand: (command: Command) => void;
+  commands: ActionItem[];
+  title: string;
+  onNoResults: (search: string) => ActionItem;
+  allowSelectNone?: boolean;
+  autoSelectFirstOption?: boolean;
+  autoSelectInitialInputText?: boolean;
+  onChangeValue?: (value: string) => void;
+  initialValue?: string;
 }
 
 type CommandPaletteProps = DetailedHTMLProps<
@@ -212,15 +238,79 @@ type CommandPaletteProps = DetailedHTMLProps<
 > &
   CommandPaletteExtraProps;
 
-const CommandPalette = ({ onCommand }: CommandPaletteProps) => {
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [searchValue, setSearchValue] = useState('');
+const CommandPalette = ({
+  onCommand,
+  commands,
+  title,
+  onNoResults,
+  onChangeValue = () => {},
+  initialValue = '',
+  // Allows the user to submit any input
+  allowSelectNone = true,
+  // Automatically picks the top command
+  // Always `true` if `allowSelectNone` is false
+  autoSelectFirstOption = false,
+  autoSelectInitialInputText = false,
+}: CommandPaletteProps) => {
+  const [selectedIndex, setSelectedIndex] = useState(
+    autoSelectFirstOption ? 0 : -1
+  );
+  const [searchValue, setSearchValue] = useState(initialValue);
   const [availableItems, setAvailableItems] = useState<ActionItem[]>(commands);
   const fuseList = useRef<Fuse<ActionItem>>(
-    new Fuse(availableItems, { keys: ['item'] })
+    new Fuse(availableItems, { keys: ['item'], threshold: 0.5 })
   );
   const [searchResults, setSearchResults] =
     useState<ActionItem[]>(availableItems);
+  const updateSearchValue = useCallback(
+    (value: string) => {
+      onChangeValue(value);
+      setSearchValue(value);
+    },
+    [onChangeValue, setSearchValue]
+  );
+
+  const addItem = useCallback(
+    (item: ActionItem) => {
+      setAvailableItems([item, ...availableItems]);
+    },
+    [setAvailableItems]
+  );
+
+  const selectIndex = useCallback(
+    (index: number, scrollIntoView = false) => {
+      if (scrollIntoView && index >= 0 && index < searchResults.length) {
+        const s = searchResults[index];
+        const dom = document.getElementById(`item-${s.item}`);
+        dom?.scrollIntoView();
+      }
+      setSelectedIndex(index);
+    },
+    [setSelectedIndex, searchResults]
+  );
+
+  const selectItem = useCallback(() => {
+    let item;
+    if (selectedIndex >= 0) {
+      item = searchResults[selectedIndex];
+    }
+
+    if (!item) {
+      item = onNoResults(searchValue);
+      addItem(item);
+    }
+
+    if (item) {
+      onCommand(item.command);
+    }
+  }, [
+    addItem,
+    onCommand,
+    onNoResults,
+    searchResults,
+    searchValue,
+    selectedIndex,
+  ]);
 
   useEffect(() => {
     fuseList.current = new Fuse<ActionItem>(availableItems, { keys: ['item'] });
@@ -235,38 +325,53 @@ const CommandPalette = ({ onCommand }: CommandPaletteProps) => {
     }
     if (results !== searchResults) {
       setSearchResults(results);
-      setSelectedIndex(0);
+      if (autoSelectFirstOption || !allowSelectNone) {
+        selectIndex(0);
+      }
     }
   }, [searchValue, availableItems]);
 
-  const addItem = (item: ActionItem) => {
-    setAvailableItems([item, ...availableItems]);
-  };
+  useKeyPressEffect(
+    () =>
+      selectIndex(
+        allowSelectNone && selectedIndex === searchResults.length - 1
+          ? -1
+          : (selectedIndex + 1) % searchResults.length,
+        true
+      ),
+    'ArrowDown',
+    false,
+    true
+  );
+  useKeyPressEffect(
+    () =>
+      selectIndex(
+        allowSelectNone && selectedIndex === searchResults.length - 1
+          ? -1
+          : (selectedIndex + 1) % searchResults.length,
+        true
+      ),
+    'Tab',
+    false,
+    true
+  );
+  useKeyPressEffect(
+    () => {
+      return selectIndex(
+        allowSelectNone && selectedIndex === 0
+          ? -1
+          : (selectedIndex === -1
+              ? searchResults.length - 1
+              : selectedIndex - 1) % searchResults.length,
+        true
+      );
+    },
+    'ArrowUp',
+    false,
+    true
+  );
 
-  useKeyPressEffect(() => {
-    setSelectedIndex((selectedIndex + 1) % searchResults.length);
-  }, 'ArrowDown');
-  useKeyPressEffect(() => {
-    setSelectedIndex(
-      (selectedIndex - 1 + searchResults.length) % searchResults.length
-    );
-  }, 'ArrowUp');
-  useKeyPressEffect(() => {
-    let item = searchResults[selectedIndex];
-
-    if (!item) {
-      const nodeData = NodeHelper.webview(searchValue);
-      item = {
-        item: `New Browser: ${searchValue}`,
-        command: CommandHelper.addNode(nodeData),
-      };
-      addItem(item);
-    }
-
-    if (item) {
-      onCommand(item.command);
-    }
-  }, 'Enter');
+  useKeyPressEffect(selectItem, 'Enter');
 
   return (
     <div className={styles.commandPalette}>
@@ -276,31 +381,40 @@ const CommandPalette = ({ onCommand }: CommandPaletteProps) => {
           styles.commandPaletteTitle
         )}
       >
-        Actions
+        {title}
       </div>
       <div className={styles.commandPaletteItem}>
         <div className={styles.commandPaletteDivider} />
       </div>
       <Input
         autoFocus
+        autoSelect={autoSelectInitialInputText}
         value={searchValue}
-        setValue={setSearchValue}
+        setValue={updateSearchValue}
         className={classNames({
           [styles.commandPaletteInput]: true,
           [styles.commandPaletteItem]: true,
         })}
       />
-      <div className={styles.commandPaletteResults}>
+      <div
+        className={styles.commandPaletteResults}
+        onMouseLeave={() => {
+          if (!autoSelectFirstOption) {
+            selectIndex(-1);
+          }
+        }}
+      >
         {searchResults.length ? (
           searchResults.map((s, i) => (
             <SelectableItem
+              id={`item-${s.item}`}
               key={s.item}
               value={s.item}
               focused={selectedIndex === i}
               onFocus={() => {
-                setSelectedIndex(i);
+                selectIndex(i);
               }}
-              onSelect={s.command}
+              onSelect={() => onCommand(s.command)}
               shortcut={s.shortcut}
             />
           ))
@@ -320,9 +434,11 @@ const CommandPalette = ({ onCommand }: CommandPaletteProps) => {
 };
 
 export {
+  mainCommands,
   CommandPalette,
   OpenOnKeyPress,
   CloseWithEscape,
   CommandHelper,
   Command,
+  ActionItem,
 };

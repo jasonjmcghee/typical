@@ -1,11 +1,13 @@
 import {
   DetailedHTMLProps,
   HTMLAttributes,
+  MutableRefObject,
   useCallback,
+  useRef,
   useState,
 } from 'react';
-import styles from './InputBox.module.scss';
-import { Input } from './Input';
+import { ActionItem, CommandHelper, CommandPalette } from './CommandPalette';
+import { buildUrl } from '../util';
 
 type InputBoxProps = DetailedHTMLProps<
   HTMLAttributes<HTMLDivElement>,
@@ -14,9 +16,15 @@ type InputBoxProps = DetailedHTMLProps<
   value: string;
   onChangeValue: (val: string) => void;
   onSubmitValue: () => void;
+  history: MutableRefObject<string[]>;
 };
 
-function InputBox({ value, onChangeValue, onSubmitValue }: InputBoxProps) {
+function InputBox({
+  value,
+  onChangeValue,
+  onSubmitValue,
+  history,
+}: InputBoxProps) {
   const changeValue = useCallback(
     (val: string) => {
       onChangeValue(val);
@@ -25,25 +33,30 @@ function InputBox({ value, onChangeValue, onSubmitValue }: InputBoxProps) {
   );
 
   return (
-    <div className={styles.inputBox}>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
+    <CommandPalette
+      autoSelectInitialInputText
+      autoSelectFirstOption={false}
+      onCommand={(command) => {
+        if (CommandHelper.isNavigate(command)) {
+          changeValue(command.url);
           onSubmitValue();
-        }}
-      >
-        <Input
-          autoFocus
-          value={value}
-          setValue={changeValue}
-          className={styles.inputBoxInput}
-        />
-        <button
-          type="submit"
-          style={{ display: 'none', position: 'absolute' }}
-        />
-      </form>
-    </div>
+        }
+      }}
+      commands={history.current.map((h) => ({
+        item: h,
+        command: { type: 'navigate', url: h },
+      }))}
+      onChangeValue={changeValue}
+      onNoResults={(search: string) => {
+        history.current.push(buildUrl(search));
+        return {
+          item: search,
+          command: { type: 'navigate', url: search },
+        };
+      }}
+      title="URL"
+      initialValue={value}
+    />
   );
 }
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useRefState } from './useRefState';
 
 interface IKeyPress {
   key: string;
@@ -28,22 +29,23 @@ class KeyPress implements IKeyPress {
 
 function useKeyPress(
   targetKeyRaw?: KeyPress | string,
-  propagate = false
-): boolean {
+  propagate = false,
+  repeat = false
+): number {
   const targetKey: KeyPress | undefined =
     typeof targetKeyRaw === 'string'
       ? new KeyPress({ key: targetKeyRaw })
       : targetKeyRaw;
 
   // State for keeping track of whether key is pressed
-  const [keyPressed, setKeyPressed] = useState(false);
+  const [keyPressed, setKeyPressed, keyPressedRef] = useRefState(0);
   // If pressed key is our target key then set to true
   function downHandler(event: KeyboardEvent): void {
     if (targetKey?.isActivated(event)) {
       if (!propagate) {
         event.preventDefault();
       }
-      setKeyPressed(true);
+      setKeyPressed(repeat ? keyPressedRef.current + 1 : 1);
     }
   }
   // If released key is our target key then set to false
@@ -52,7 +54,7 @@ function useKeyPress(
       if (!propagate) {
         event.preventDefault();
       }
-      setKeyPressed(false);
+      setKeyPressed(0);
     }
   };
   // Add event listeners
@@ -65,17 +67,18 @@ function useKeyPress(
       window.removeEventListener('keyup', upHandler);
     };
   }, []); // Empty array ensures that effect is only run on mount and unmount
-  return !!targetKey && keyPressed;
+  return targetKey ? keyPressed : 0;
 }
 
 function useKeyPressEffect(
   onKeyPress: () => void,
   targetKey?: KeyPress | string,
-  propagate = false
+  propagate = false,
+  repeat = false
 ) {
-  const keyPress = useKeyPress(targetKey, propagate);
+  const keyPress = useKeyPress(targetKey, propagate, repeat);
   useEffect(() => {
-    if (keyPress) {
+    if (keyPress > 0) {
       onKeyPress();
     }
   }, [keyPress]);

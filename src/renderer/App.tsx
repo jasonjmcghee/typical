@@ -13,11 +13,14 @@ import {
   PlusIcon,
   XMarkIcon,
 } from '@heroicons/react/24/solid';
+import { doc } from 'prettier';
 import {
   CloseWithEscape,
   Command,
   CommandHelper,
   CommandPalette,
+  MainCommandPalette,
+  mainCommands,
 } from './components/CommandPalette';
 // import Canvas from "./components/Canvas";
 import {
@@ -34,7 +37,6 @@ import { useNodes } from './hooks/useNodes';
 import { Workspace, WorkspaceLookup } from './components/types';
 import { useSerialization } from './hooks/useSerialization';
 import { InputBox } from './components/InputBox';
-import { doc } from 'prettier';
 
 const basicHelpText =
   'Welcome!\n' +
@@ -99,8 +101,13 @@ function CopyClipboardLink({ onClick }: { onClick: () => void }) {
 }
 
 const Main = () => {
-  const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
-  const [showInputBox, setShowInputBox] = useState<boolean>(false);
+  const historyRef = useRef([
+    'https://www.google.com',
+    'https://news.ycombinator.com',
+  ]);
+  const [showCommandPalette, setShowCommandPalette] =
+    useRefState<boolean>(false);
+  const [showInputBox, setShowInputBox] = useRefState<boolean>(false);
   const [inputBoxValue, setInputBoxValue] = useState<string>('');
   const onChangeInputBoxValue = useRef<(val: string) => void>(() => {});
   const onSubmitInputBoxValue = useRef<() => void>(() => {});
@@ -799,7 +806,15 @@ const Main = () => {
         </div>
         <div className="title-bar-rest" />
       </div>
-      {(showCommandPalette || showInputBox) && <div className="overlay" />}
+      {(showCommandPalette || showInputBox) && (
+        <div
+          className="overlay"
+          onClick={() => {
+            setShowCommandPalette(false);
+            setShowInputBox(false);
+          }}
+        />
+      )}
       <div className="search-bar-container">
         <CopyClipboardLink
           onClick={() => {
@@ -821,7 +836,8 @@ const Main = () => {
         onHide={() => setShowCommandPalette(false)}
       >
         <CommandPalette
-          onBlur={() => setShowCommandPalette(false)}
+          title="Actions"
+          commands={mainCommands}
           onCommand={(command: Command) => {
             // AddWebview(w);
             if (CommandHelper.isAddNode(command)) {
@@ -833,6 +849,13 @@ const Main = () => {
             }
             setShowCommandPalette(false);
           }}
+          onNoResults={(search: string) => {
+            const nodeData = NodeHelper.webview(search);
+            return {
+              item: `New Browser: ${search}`,
+              command: CommandHelper.addNode(nodeData),
+            };
+          }}
         />
       </CloseWithEscape>
       <CloseWithEscape
@@ -840,7 +863,7 @@ const Main = () => {
         onHide={() => setShowInputBox(false)}
       >
         <InputBox
-          onBlur={() => setShowInputBox(false)}
+          history={historyRef}
           value={inputBoxValue}
           onChangeValue={(value: string) => {
             setInputBoxValue(value);
