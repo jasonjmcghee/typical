@@ -1,9 +1,10 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
-import { TextRecipe, WebviewRecipe } from '../renderer/preload';
+import { MosaicRecipe, TextRecipe, WebviewRecipe } from '../renderer/preload';
 
 export type Channels =
   | 'ipc-example'
   | 'add-webview'
+  | 'add-mosaic'
   | 'zoom-in'
   | 'zoom-out'
   | 'zoom-in-all'
@@ -41,6 +42,11 @@ contextBridge.exposeInMainWorld('electron', {
   },
   onAddText: (func: (objs: TextRecipe[]) => void) => {
     on('add-text', (args) => func(args as TextRecipe[]));
+  },
+  onAddMosaic: (func: (objs: MosaicRecipe[]) => void) => {
+    on('add-mosaic', (args) => {
+      func(args as MosaicRecipe[]);
+    });
   },
   onOpenCommandPalette: (func: () => void) => {
     on('open-command-palette', func);

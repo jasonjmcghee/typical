@@ -18,12 +18,17 @@ interface TextRecipe {
   position?: Position;
 }
 
+interface MosaicRecipe {
+  position?: Position;
+}
+
 declare global {
   interface Window {
     electron: {
       setTitle: (title: string) => void;
       onAddWebview: (func: (objs: WebviewRecipe[]) => void) => void;
       onAddText: (func: (objs: TextRecipe[]) => void) => void;
+      onAddMosaic: (func: (objs: MosaicRecipe[]) => void) => void;
       initialLoadFinished: () => void;
       onOpenCommandPalette: (func: () => void) => void;
       onRequestEditInput: (func: () => void) => void;
@@ -45,4 +50,4 @@ declare global {
   }
 }
 
-export { WebviewRecipe, TextRecipe, Position, Size };
+export { WebviewRecipe, TextRecipe, MosaicRecipe, Position, Size };

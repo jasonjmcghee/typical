@@ -19,18 +19,15 @@ export default class MenuBuilder {
   }
 
   buildMenu(): Menu {
-    if (
+    const isDevelopment =
       process.env.NODE_ENV === 'development' ||
-      process.env.DEBUG_PROD === 'true'
-    ) {
-      this.setupDevelopmentEnvironment();
-    }
+      process.env.DEBUG_PROD === 'true';
 
-    this.createContextMenu();
+    this.createContextMenu(isDevelopment);
 
     const template =
       process.platform === 'darwin'
-        ? this.buildDarwinTemplate()
+        ? this.buildDarwinTemplate(isDevelopment)
         : this.buildDefaultTemplate();
 
     const menu = Menu.buildFromTemplate(template);
@@ -39,11 +36,11 @@ export default class MenuBuilder {
     return menu;
   }
 
-  createContextMenu(): void {
+  createContextMenu(isDevelopment: boolean): void {
     this.mainWindow.webContents.on('context-menu', (_, props) => {
       const { x, y } = props;
 
-      Menu.buildFromTemplate([
+      const options = [
         {
           label: 'New Browser',
           click: () => {
@@ -72,13 +69,24 @@ export default class MenuBuilder {
             this.mainWindow.webContents.send('copy-workspace-to-clipboard');
           },
         },
-      ]).popup({ window: this.mainWindow });
+      ];
+
+      if (isDevelopment) {
+        options.push({
+          label: 'New Mosaic',
+          click: () => {
+            this.mainWindow.webContents.send('add-mosaic', [
+              { position: { x, y: y - 40 } },
+            ]);
+          },
+        });
+      }
+
+      Menu.buildFromTemplate(options).popup({ window: this.mainWindow });
     });
   }
 
-  setupDevelopmentEnvironment(): void {}
-
-  buildDarwinTemplate(): MenuItemConstructorOptions[] {
+  buildDarwinTemplate(isDevelopment: boolean): MenuItemConstructorOptions[] {
     const subMenuAbout: DarwinMenuItemConstructorOptions = {
       label: 'Typical',
       submenu: [
@@ -110,42 +118,49 @@ export default class MenuBuilder {
         },
       ],
     };
+    const subMenuFileSubMenu: DarwinMenuItemConstructorOptions[] = [
+      {
+        label: 'New Browser',
+        accelerator: 'Command+N',
+        click: () => {
+          this.mainWindow.webContents.send('add-webview', [
+            { url: 'https://google.com' },
+          ]);
+        },
+      },
+      {
+        label: 'New Text',
+        accelerator: 'Command+T',
+        click: () => {
+          this.mainWindow.webContents.send('add-text', [{ text: 'New text' }]);
+        },
+      },
+      {
+        label: 'Command Palette',
+        accelerator: 'Command+K',
+        click: () => {
+          this.mainWindow.webContents.send('open-command-palette');
+        },
+      },
+      {
+        label: 'Input Box',
+        accelerator: 'Command+L',
+        click: () => {
+          this.mainWindow.webContents.send('request-edit-input');
+        },
+      },
+    ];
+    if (isDevelopment) {
+      subMenuFileSubMenu.push({
+        label: 'New Mosaic',
+        click: () => {
+          this.mainWindow.webContents.send('add-mosaic');
+        },
+      });
+    }
     const subMenuFile: DarwinMenuItemConstructorOptions = {
       label: 'File',
-      submenu: [
-        {
-          label: 'New Browser',
-          accelerator: 'Command+N',
-          click: () => {
-            this.mainWindow.webContents.send('add-webview', [
-              { url: 'https://google.com' },
-            ]);
-          },
-        },
-        {
-          label: 'New Text',
-          accelerator: 'Command+T',
-          click: () => {
-            this.mainWindow.webContents.send('add-text', [
-              { text: 'New text' },
-            ]);
-          },
-        },
-        {
-          label: 'Command Palette',
-          accelerator: 'Command+K',
-          click: () => {
-            this.mainWindow.webContents.send('open-command-palette');
-          },
-        },
-        {
-          label: 'Input Box',
-          accelerator: 'Command+L',
-          click: () => {
-            this.mainWindow.webContents.send('request-edit-input');
-          },
-        },
-      ],
+      submenu: subMenuFileSubMenu,
     };
     const subMenuEdit: DarwinMenuItemConstructorOptions = {
       label: 'Edit',

@@ -663,6 +663,7 @@ const Main = () => {
     const {
       onAddWebview,
       onAddText,
+      onAddMosaic,
       onOpenCommandPalette,
       initialLoadFinished,
       onFocusApp,
@@ -700,6 +701,15 @@ const Main = () => {
     onAddText((objs) => {
       objs.forEach(({ text, position }) => {
         addDefault(NodeHelper.text(text), {
+          position,
+          autoSelect: objs.length === 1,
+        });
+      });
+    });
+
+    onAddMosaic((objs) => {
+      objs.forEach(({ position }) => {
+        addDefault(NodeHelper.mosaic(), {
           position,
           autoSelect: objs.length === 1,
         });

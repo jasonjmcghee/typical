@@ -13,6 +13,9 @@ import {
   useState,
 } from 'react';
 import { PanZoom } from 'panzoom';
+import { Mosaic, MosaicWindow } from 'react-mosaic-component';
+import './react-mosaic-component.css';
+
 import WebviewTag = Electron.WebviewTag;
 import {
   ArrowLeftIcon,
@@ -149,7 +152,11 @@ interface ImageNode {
   alt: undefined | string;
 }
 
-type TNodeDetails = ITextNode | IWebviewNode | ImageNode;
+interface MosaicNode {
+  type: 'mosaic';
+}
+
+type TNodeDetails = ITextNode | IWebviewNode | ImageNode | MosaicNode;
 class NodeHelper {
   static isNode(n: any): n is TNodeDetails {
     return 'type' in n;
@@ -177,6 +184,14 @@ class NodeHelper {
 
   static isImage(n: any): n is ImageNode {
     return NodeHelper.isNode(n) && n.type === 'image';
+  }
+
+  static mosaic(): MosaicNode {
+    return { type: 'mosaic' };
+  }
+
+  static isMosaicNode(n: any): n is MosaicNode {
+    return NodeHelper.isNode(n) && n.type === 'mosaic';
   }
 }
 
@@ -659,6 +674,43 @@ const Webview = ({
   );
 };
 
+export type ViewId = 'a' | 'b' | 'c' | 'new';
+
+const TITLE_MAP: Record<ViewId, string> = {
+  a: 'Left Window',
+  b: 'Top Right Window',
+  c: 'Bottom Right Window',
+  new: 'New Window',
+};
+
+export const MosaicNode = () => {
+  return useMemo(
+    () => (
+      <Mosaic<ViewId>
+        renderTile={(id, path) => (
+          <MosaicWindow<ViewId>
+            path={path}
+            createNode={() => 'new'}
+            title={TITLE_MAP[id]}
+          >
+            <h1>{TITLE_MAP[id]}</h1>
+          </MosaicWindow>
+        )}
+        initialValue={{
+          direction: 'row',
+          first: 'a',
+          second: {
+            direction: 'column',
+            first: 'b',
+            second: 'c',
+          },
+        }}
+      />
+    ),
+    []
+  );
+};
+
 function CompNode({
   id,
   zoomLevel,
@@ -746,6 +798,15 @@ function CompNode({
       </GenericNode>
     );
   }
+
+  if (NodeHelper.isMosaicNode(nodeDetails)) {
+    return (
+      <GenericNode selected={selected} {...rest}>
+        {<MosaicNode />}
+      </GenericNode>
+    );
+  }
+
   return null;
 }
 
@@ -879,9 +940,9 @@ function WebNode({
     onSerialize();
   }, [position, size, zoomLevel]);
 
-  useEffect(() => {
-    baseRef.current?.addEventListener('keydown', () => {});
-  }, []);
+  // useEffect(() => {
+  //   baseRef.current?.addEventListener('keydown', () => {});
+  // }, []);
 
   return (
     <div ref={baseRef} className={styles.frameStyle}>

@@ -102,6 +102,8 @@
     }
   },
   "dependencies": {
+    "@blueprintjs/core": "^4.11.5",
+    "@blueprintjs/icons": "^4.9.0",
     "@heroicons/react": "^2.0.12",
     "@reduxjs/toolkit": "^1.8.6",
     "@types/react-redux": "^7.1.24",
